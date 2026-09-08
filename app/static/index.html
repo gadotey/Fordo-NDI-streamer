@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Fordo NDI Streamer</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #111827;
+            color: #f9fafb;
+        }
+
+        header {
+            background: #0b1220;
+            padding: 24px;
+            border-bottom: 1px solid #283548;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 26px;
+        }
+
+        header p {
+            color: #94a3b8;
+            margin-bottom: 0;
+        }
+
+        main {
+            max-width: 1050px;
+            margin: auto;
+            padding: 30px 20px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .panel {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 22px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .count {
+            background: #374151;
+            padding: 7px 12px;
+            border-radius: 20px;
+        }
+
+        .source {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 9px;
+            padding: 16px;
+            margin-top: 14px;
+        }
+
+        .source-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .source-url {
+            margin-top: 7px;
+            color: #94a3b8;
+            font-family: monospace;
+            overflow-wrap: anywhere;
+        }
+
+        .empty {
+            padding: 40px 15px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            margin-top: 30px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Fordo NDI Streamer</h1>
+    <p>Raspberry Pi NDI Streaming Appliance</p>
+</header>
+
+<main>
+
+    <div class="status">
+        <span class="dot" id="connection-dot"></span>
+        <span id="connection-status">
+            Connecting to discovery service...
+        </span>
+    </div>
+
+    <div class="panel">
+
+        <div class="panel-header">
+            <h2>NDI Sources</h2>
+            <span class="count">
+                <span id="source-count">0</span> detected
+            </span>
+        </div>
+
+        <div id="sources">
+            <div class="empty">
+                Searching for NDI sources...
+            </div>
+        </div>
+
+    </div>
+
+    <footer>
+        Fordo NDI Streamer v0.1.0
+    </footer>
+
+</main>
+
+<script>
+
+const sourceContainer = document.getElementById("sources");
+const sourceCount = document.getElementById("source-count");
+const statusText = document.getElementById("connection-status");
+const statusDot = document.getElementById("connection-dot");
+
+function renderSources(data) {
+
+    sourceCount.textContent = data.count;
+
+    if (!data.sources.length) {
+
+        sourceContainer.innerHTML =
+            '<div class="empty">' +
+            'No NDI sources detected.<br>' +
+            'Waiting for a source to appear on the network...' +
+            '</div>';
+
+        return;
+    }
+
+    sourceContainer.innerHTML = "";
+
+    data.sources.forEach(source => {
+
+        const element = document.createElement("div");
+        element.className = "source";
+
+        const name = document.createElement("div");
+        name.className = "source-name";
+        name.textContent = source.name;
+
+        const url = document.createElement("div");
+        url.className = "source-url";
+        url.textContent = source.url || "Address not reported";
+
+        element.appendChild(name);
+        element.appendChild(url);
+
+        sourceContainer.appendChild(element);
+
+    });
+}
+
+function connect() {
+
+    const protocol =
+        location.protocol === "https:" ? "wss" : "ws";
+
+    const socket = new WebSocket(
+        protocol + "://" +
+        location.host +
+        "/ws/sources"
+    );
+
+    socket.onopen = function () {
+
+        statusText.textContent =
+            "NDI discovery service connected";
+
+        statusDot.style.background = "#22c55e";
+    };
+
+    socket.onmessage = function (event) {
+
+        const data = JSON.parse(event.data);
+        renderSources(data);
+    };
+
+    socket.onclose = function () {
+
+        statusText.textContent =
+            "Discovery service disconnected - reconnecting...";
+
+        statusDot.style.background = "#ef4444";
+
+        setTimeout(connect, 2000);
+    };
+
+}
+
+connect();
+
+</script>
+
+</body>
+</html>
