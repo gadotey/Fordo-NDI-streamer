@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from app.ndi_discovery import discovery
+from app.system_metrics import get_system_metrics
 
 
 @asynccontextmanager
@@ -51,26 +52,33 @@ async def sources():
     }
 
 
-@app.websocket("/ws/sources")
-async def source_websocket(websocket: WebSocket):
-    await websocket.accept()
+@app.get("/api/system")
+async def system():
+    metrics = get_system_metrics()
+    metrics["ndi_source_count"] = len(discovery.get_sources())
+    metrics["discovery_running"] = discovery._running
+    return metrics
 
-    previous = None
+
+@app.websocket("/ws/status")
+async def status_websocket(websocket: WebSocket):
+    await websocket.accept()
 
     try:
         while True:
-            current = discovery.get_sources()
+            sources = discovery.get_sources()
+            metrics = get_system_metrics()
 
-            if current != previous:
-                await websocket.send_json(
-                    {
-                        "count": len(current),
-                        "sources": current,
-                    }
-                )
-                previous = current
+            await websocket.send_json({
+                "sources": {
+                    "count": len(sources),
+                    "items": sources,
+                },
+                "system": metrics,
+                "discovery_running": discovery._running,
+            })
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
     except WebSocketDisconnect:
         pass

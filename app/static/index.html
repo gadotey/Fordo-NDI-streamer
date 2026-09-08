@@ -1,112 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Fordo NDI Streamer</title>
+<title>Fordo NDI Streamer</title>
 
-    <style>
-        * {
-            box-sizing: border-box;
-        }
+<style>
+* {
+    box-sizing: border-box;
+}
 
-        body {
-            margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            background: #111827;
-            color: #f9fafb;
-        }
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #111827;
+    color: #f9fafb;
+}
 
-        header {
-            background: #0b1220;
-            padding: 24px;
-            border-bottom: 1px solid #283548;
-        }
+header {
+    padding: 22px 28px;
+    background: #0b1220;
+    border-bottom: 1px solid #374151;
+}
 
-        header h1 {
-            margin: 0;
-            font-size: 26px;
-        }
+header h1 {
+    margin: 0;
+}
 
-        header p {
-            color: #94a3b8;
-            margin-bottom: 0;
-        }
+header p {
+    color: #94a3b8;
+    margin-bottom: 0;
+}
 
-        main {
-            max-width: 1050px;
-            margin: auto;
-            padding: 30px 20px;
-        }
+main {
+    max-width: 1150px;
+    margin: auto;
+    padding: 28px 20px;
+}
 
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 24px;
-        }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
 
-        .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #22c55e;
-        }
+.card,
+.panel {
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 12px;
+}
 
-        .panel {
-            background: #1f2937;
-            border: 1px solid #374151;
-            border-radius: 12px;
-            padding: 22px;
-        }
+.card {
+    padding: 18px;
+}
 
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+.label {
+    color: #94a3b8;
+    font-size: 13px;
+}
 
-        .count {
-            background: #374151;
-            padding: 7px 12px;
-            border-radius: 20px;
-        }
+.value {
+    font-size: 23px;
+    font-weight: bold;
+    margin-top: 8px;
+}
 
-        .source {
-            background: #111827;
-            border: 1px solid #374151;
-            border-radius: 9px;
-            padding: 16px;
-            margin-top: 14px;
-        }
+.panel {
+    padding: 22px;
+    margin-bottom: 22px;
+}
 
-        .source-name {
-            font-size: 18px;
-            font-weight: bold;
-        }
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 
-        .source-url {
-            margin-top: 7px;
-            color: #94a3b8;
-            font-family: monospace;
-            overflow-wrap: anywhere;
-        }
+.badge {
+    padding: 7px 12px;
+    border-radius: 20px;
+    background: #374151;
+}
 
-        .empty {
-            padding: 40px 15px;
-            text-align: center;
-            color: #94a3b8;
-        }
+.source,
+.interface {
+    margin-top: 12px;
+    padding: 15px;
+    border-radius: 8px;
+    background: #111827;
+    border: 1px solid #374151;
+}
 
-        footer {
-            text-align: center;
-            color: #64748b;
-            margin-top: 30px;
-            font-size: 13px;
-        }
-    </style>
+.source-name {
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.secondary {
+    margin-top: 5px;
+    color: #94a3b8;
+    font-family: monospace;
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 20px;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #f59e0b;
+}
+
+.empty {
+    color: #94a3b8;
+    text-align: center;
+    padding: 35px;
+}
+
+footer {
+    text-align: center;
+    color: #64748b;
+    margin-top: 30px;
+}
+</style>
 </head>
 
 <body>
@@ -118,78 +142,150 @@
 
 <main>
 
-    <div class="status">
-        <span class="dot" id="connection-dot"></span>
-        <span id="connection-status">
-            Connecting to discovery service...
-        </span>
+<div class="status-row">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+</div>
+
+<div class="grid">
+
+    <div class="card">
+        <div class="label">CPU</div>
+        <div class="value" id="cpu">--</div>
     </div>
 
-    <div class="panel">
-
-        <div class="panel-header">
-            <h2>NDI Sources</h2>
-            <span class="count">
-                <span id="source-count">0</span> detected
-            </span>
-        </div>
-
-        <div id="sources">
-            <div class="empty">
-                Searching for NDI sources...
-            </div>
-        </div>
-
+    <div class="card">
+        <div class="label">Temperature</div>
+        <div class="value" id="temperature">--</div>
     </div>
 
-    <footer>
-        Fordo NDI Streamer v0.1.0
-    </footer>
+    <div class="card">
+        <div class="label">Memory</div>
+        <div class="value" id="memory">--</div>
+    </div>
+
+    <div class="card">
+        <div class="label">NDI Sources</div>
+        <div class="value" id="ndi-count">0</div>
+    </div>
+
+</div>
+
+<div class="panel">
+
+    <div class="panel-header">
+        <h2>NDI Sources</h2>
+        <span class="badge" id="source-badge">0 detected</span>
+    </div>
+
+    <div id="sources">
+        <div class="empty">
+            Searching for NDI sources...
+        </div>
+    </div>
+
+</div>
+
+<div class="panel">
+
+    <div class="panel-header">
+        <h2>Network</h2>
+        <span class="badge" id="hostname">--</span>
+    </div>
+
+    <div id="network"></div>
+
+</div>
+
+<footer>
+Fordo NDI Streamer v0.1.0
+</footer>
 
 </main>
 
 <script>
 
-const sourceContainer = document.getElementById("sources");
-const sourceCount = document.getElementById("source-count");
-const statusText = document.getElementById("connection-status");
-const statusDot = document.getElementById("connection-dot");
+const statusDot = document.getElementById("status-dot");
+const statusText = document.getElementById("status-text");
 
-function renderSources(data) {
+function render(data) {
 
-    sourceCount.textContent = data.count;
+    document.getElementById("cpu").textContent =
+        data.system.cpu_percent.toFixed(1) + "%";
 
-    if (!data.sources.length) {
+    document.getElementById("memory").textContent =
+        data.system.memory_percent.toFixed(1) + "%";
 
-        sourceContainer.innerHTML =
+    document.getElementById("temperature").textContent =
+        data.system.temperature_c !== null
+        ? data.system.temperature_c + "°C"
+        : "N/A";
+
+    document.getElementById("ndi-count").textContent =
+        data.sources.count;
+
+    document.getElementById("source-badge").textContent =
+        data.sources.count + " detected";
+
+    document.getElementById("hostname").textContent =
+        data.system.hostname;
+
+    const sources = document.getElementById("sources");
+
+    if (!data.sources.items.length) {
+
+        sources.innerHTML =
             '<div class="empty">' +
-            'No NDI sources detected.<br>' +
-            'Waiting for a source to appear on the network...' +
+            'No NDI sources currently detected.' +
             '</div>';
 
-        return;
+    } else {
+
+        sources.innerHTML = "";
+
+        data.sources.items.forEach(source => {
+
+            const div = document.createElement("div");
+            div.className = "source";
+
+            const name = document.createElement("div");
+            name.className = "source-name";
+            name.textContent = source.name;
+
+            const address = document.createElement("div");
+            address.className = "secondary";
+            address.textContent =
+                source.url || "Address not reported";
+
+            div.appendChild(name);
+            div.appendChild(address);
+
+            sources.appendChild(div);
+        });
     }
 
-    sourceContainer.innerHTML = "";
+    const network = document.getElementById("network");
+    network.innerHTML = "";
 
-    data.sources.forEach(source => {
+    data.system.network_interfaces.forEach(iface => {
 
-        const element = document.createElement("div");
-        element.className = "source";
+        const div = document.createElement("div");
+        div.className = "interface";
 
-        const name = document.createElement("div");
-        name.className = "source-name";
-        name.textContent = source.name;
+        let text =
+            iface.name +
+            " — " +
+            (iface.ipv4 || "No IPv4") +
+            " — " +
+            (iface.up ? "UP" : "DOWN");
 
-        const url = document.createElement("div");
-        url.className = "source-url";
-        url.textContent = source.url || "Address not reported";
+        if (iface.speed_mbps) {
+            text += " — " + iface.speed_mbps + " Mbps";
+        }
 
-        element.appendChild(name);
-        element.appendChild(url);
+        div.textContent = text;
 
-        sourceContainer.appendChild(element);
-
+        network.appendChild(div);
     });
 }
 
@@ -198,36 +294,33 @@ function connect() {
     const protocol =
         location.protocol === "https:" ? "wss" : "ws";
 
-    const socket = new WebSocket(
+    const ws = new WebSocket(
         protocol + "://" +
         location.host +
-        "/ws/sources"
+        "/ws/status"
     );
 
-    socket.onopen = function () {
-
-        statusText.textContent =
-            "NDI discovery service connected";
+    ws.onopen = () => {
 
         statusDot.style.background = "#22c55e";
-    };
-
-    socket.onmessage = function (event) {
-
-        const data = JSON.parse(event.data);
-        renderSources(data);
-    };
-
-    socket.onclose = function () {
 
         statusText.textContent =
-            "Discovery service disconnected - reconnecting...";
+            "Fordo services online";
+    };
+
+    ws.onmessage = event => {
+        render(JSON.parse(event.data));
+    };
+
+    ws.onclose = () => {
 
         statusDot.style.background = "#ef4444";
 
+        statusText.textContent =
+            "Connection lost - reconnecting...";
+
         setTimeout(connect, 2000);
     };
-
 }
 
 connect();
