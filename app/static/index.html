@@ -125,6 +125,59 @@ main {
     padding: 35px;
 }
 
+.preview-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+}
+
+.preview-controls select,
+.preview-controls button {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #4b5563;
+    font-size: 14px;
+}
+
+.preview-controls select {
+    flex: 1;
+    min-width: 250px;
+    background: #111827;
+    color: #f9fafb;
+}
+
+.preview-controls button {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.preview-area {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid #374151;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-area img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+}
+
+.preview-placeholder {
+    color: #94a3b8;
+    text-align: center;
+    padding: 20px;
+}
+
+
 footer {
     text-align: center;
     color: #64748b;
@@ -189,6 +242,33 @@ footer {
 <div class="panel">
 
     <div class="panel-header">
+        <h2>Live NDI Preview</h2>
+        <span class="badge" id="preview-status">Stopped</span>
+    </div>
+
+    <div class="preview-controls">
+        <select id="preview-source">
+            <option value="">Select an NDI source</option>
+        </select>
+
+        <button id="start-preview">Start Preview</button>
+        <button id="stop-preview">Stop Preview</button>
+    </div>
+
+    <div class="preview-area">
+        <div class="preview-placeholder" id="preview-placeholder">
+            Select an NDI source and click Start Preview
+        </div>
+
+        <img id="preview-image" alt="Live NDI Preview">
+    </div>
+
+</div>
+
+
+<div class="panel">
+
+    <div class="panel-header">
         <h2>Network</h2>
         <span class="badge" id="hostname">--</span>
     </div>
@@ -207,6 +287,59 @@ Fordo NDI Streamer v0.1.0
 
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
+
+
+const previewSource = document.getElementById("preview-source");
+const previewImage = document.getElementById("preview-image");
+const previewPlaceholder = document.getElementById("preview-placeholder");
+const previewStatus = document.getElementById("preview-status");
+
+function updatePreviewSources(items) {
+    const current = previewSource.value;
+
+    previewSource.innerHTML =
+        '<option value="">Select an NDI source</option>';
+
+    items.forEach(source => {
+        const option = document.createElement("option");
+        option.value = source.name;
+        option.textContent = source.name;
+        previewSource.appendChild(option);
+    });
+
+    if (items.some(source => source.name === current)) {
+        previewSource.value = current;
+    }
+}
+
+function startPreview() {
+    const source = previewSource.value;
+
+    if (!source) {
+        previewStatus.textContent = "Select source";
+        return;
+    }
+
+    previewImage.src =
+        "/api/preview?source=" + encodeURIComponent(source);
+
+    previewImage.style.display = "block";
+    previewPlaceholder.style.display = "none";
+    previewStatus.textContent = "Live";
+}
+
+function stopPreview() {
+    previewImage.src = "";
+    previewImage.style.display = "none";
+    previewPlaceholder.style.display = "block";
+    previewStatus.textContent = "Stopped";
+}
+
+document.getElementById("start-preview")
+    .addEventListener("click", startPreview);
+
+document.getElementById("stop-preview")
+    .addEventListener("click", stopPreview);
 
 function render(data) {
 
@@ -229,6 +362,8 @@ function render(data) {
 
     document.getElementById("hostname").textContent =
         data.system.hostname;
+
+    updatePreviewSources(data.sources.items);
 
     const sources = document.getElementById("sources");
 

@@ -6,7 +6,7 @@ import socket
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.ndi_discovery import discovery
 from app.system_metrics import get_system_metrics
@@ -58,6 +58,37 @@ async def system():
     metrics["ndi_source_count"] = len(discovery.get_sources())
     metrics["discovery_running"] = discovery._running
     return metrics
+
+
+@app.get("/api/preview")
+async def preview(source: str):
+    process = await asyncio.create_subprocess_exec(
+        "./native/ndi_preview",
+        source,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        env={
+            **os.environ,
+            "LD_LIBRARY_PATH": "/usr/local/lib/ndi_hx:/usr/local/lib",
+        },
+    )
+
+    async def stream():
+        try:
+            while True:
+                chunk = await process.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            if process.returncode is None:
+                process.terminate()
+                await process.wait()
+
+    return StreamingResponse(
+        stream(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
 
 
 @app.websocket("/ws/status")
