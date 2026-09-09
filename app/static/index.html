@@ -85,6 +85,40 @@ main {
     background: #374151;
 }
 
+#preview-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#preview-status::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+#preview-status.status-stopped {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+}
+
+#preview-status.status-stopped::before {
+    background: #ef4444;
+}
+
+#preview-status.status-live {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid #22c55e;
+    color: #86efac;
+}
+
+#preview-status.status-live::before {
+    background: #22c55e;
+}
+
 .source,
 .interface {
     margin-top: 12px;
@@ -243,7 +277,7 @@ footer {
 
     <div class="panel-header">
         <h2>Live NDI Preview</h2>
-        <span class="badge" id="preview-status">Stopped</span>
+        <span class="badge status-stopped" id="preview-status">Stopped</span>
     </div>
 
     <div class="preview-controls">
@@ -325,7 +359,9 @@ function startPreview() {
 
     previewImage.style.display = "block";
     previewPlaceholder.style.display = "none";
-    previewStatus.textContent = "Live";
+    previewStatus.textContent = "LIVE";
+    previewStatus.classList.remove("status-stopped");
+    previewStatus.classList.add("status-live");
 }
 
 function stopPreview() {
@@ -333,6 +369,8 @@ function stopPreview() {
     previewImage.style.display = "none";
     previewPlaceholder.style.display = "block";
     previewStatus.textContent = "Stopped";
+    previewStatus.classList.remove("status-live");
+    previewStatus.classList.add("status-stopped");
 }
 
 document.getElementById("start-preview")
