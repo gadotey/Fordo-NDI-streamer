@@ -3,3 +3,7 @@ _pycache_/
 *.pyc
 *.log
 .env
+
+# Fordo generated/development files
+native/ndi_preview
+app/static/index.html.preview-backup
