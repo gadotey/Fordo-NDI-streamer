@@ -334,6 +334,8 @@ const statusText = document.getElementById("status-text");
 
 
 const previewSource = document.getElementById("preview-source");
+const savedPreviewSource = localStorage.getItem("fordoPreviewSource") || "";
+
 const previewImage = document.getElementById("preview-image");
 const previewPlaceholder = document.getElementById("preview-placeholder");
 const previewStatus = document.getElementById("preview-status");
@@ -374,6 +376,11 @@ function updatePreviewSources(items) {
 
     if (items.some(source => source.name === current)) {
         previewSource.value = current;
+    } else if (
+        savedPreviewSource &&
+        items.some(source => source.name === savedPreviewSource)
+    ) {
+        previewSource.value = savedPreviewSource;
     }
 }
 
@@ -414,6 +421,15 @@ function stopPreview() {
 
     setPreviewStatus("Stopped", "stopped");
 }
+
+previewSource.addEventListener("change", () => {
+    if (previewSource.value) {
+        localStorage.setItem(
+            "fordoPreviewSource",
+            previewSource.value
+        );
+    }
+});
 
 document.getElementById("start-preview")
     .addEventListener("click", startPreview);
