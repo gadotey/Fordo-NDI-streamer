@@ -334,7 +334,7 @@ const statusText = document.getElementById("status-text");
 
 
 const previewSource = document.getElementById("preview-source");
-const savedPreviewSource = localStorage.getItem("fordoPreviewSource") || "";
+let savedPreviewSource = localStorage.getItem("fordoPreviewSource") || "";
 
 const previewImage = document.getElementById("preview-image");
 const previewPlaceholder = document.getElementById("preview-placeholder");
@@ -343,6 +343,7 @@ const previewStatus = document.getElementById("preview-status");
 let previewWanted = false;
 let previewReconnectTimer = null;
 let activePreviewSource = "";
+let autoPreviewAttempted = false;
 
 function setPreviewStatus(text, state) {
     previewStatus.textContent = text;
@@ -424,6 +425,7 @@ function stopPreview() {
 
 previewSource.addEventListener("change", () => {
     if (previewSource.value) {
+        savedPreviewSource = previewSource.value;
         localStorage.setItem(
             "fordoPreviewSource",
             previewSource.value
@@ -500,6 +502,18 @@ function render(data) {
         data.system.hostname;
 
     updatePreviewSources(data.sources.items);
+
+    if (
+        !autoPreviewAttempted &&
+        savedPreviewSource &&
+        previewSource.value === savedPreviewSource &&
+        data.sources.items.some(
+            source => source.name === savedPreviewSource
+        )
+    ) {
+        autoPreviewAttempted = true;
+        startPreview();
+    }
 
     if (previewWanted && activePreviewSource) {
         const sourceAvailable = data.sources.items.some(
