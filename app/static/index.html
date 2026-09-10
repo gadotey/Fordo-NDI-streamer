@@ -222,6 +222,66 @@ main {
 }
 
 
+/* Kiosk display mode */
+body.kiosk-mode {
+    background: #000;
+    overflow: hidden;
+}
+
+body.kiosk-mode header,
+body.kiosk-mode main > :not(#preview-panel) {
+    display: none !important;
+}
+
+body.kiosk-mode main {
+    max-width: none;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+body.kiosk-mode #preview-panel {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: #000;
+}
+
+body.kiosk-mode #preview-panel .panel-header,
+body.kiosk-mode #preview-panel .preview-controls {
+    display: none;
+}
+
+body.kiosk-mode .preview-area {
+    width: 100vw;
+    height: 100vh;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+}
+
+#exit-kiosk {
+    display: none;
+}
+
+body.kiosk-mode #exit-kiosk {
+    display: block;
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 1000;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid #4b5563;
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.8;
+}
+
 footer {
     text-align: center;
     color: #64748b;
@@ -283,7 +343,7 @@ footer {
 
 </div>
 
-<div class="panel">
+<div class="panel" id="preview-panel">
 
     <div class="panel-header">
         <h2>Live NDI Preview</h2>
@@ -297,6 +357,7 @@ footer {
 
         <button id="start-preview">Start Preview</button>
         <button id="stop-preview">Stop Preview</button>
+        <button id="kiosk-preview">Kiosk Mode</button>
     </div>
 
     <div class="preview-area">
@@ -430,6 +491,31 @@ previewSource.addEventListener("change", () => {
             "fordoPreviewSource",
             previewSource.value
         );
+    }
+});
+
+function enterKioskMode() {
+    document.body.classList.add("kiosk-mode");
+
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+    }
+}
+
+function exitKioskMode() {
+    document.body.classList.remove("kiosk-mode");
+
+    if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+    }
+}
+
+document.getElementById("kiosk-preview")
+    .addEventListener("click", enterKioskMode);
+
+document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+        document.body.classList.remove("kiosk-mode");
     }
 });
 
