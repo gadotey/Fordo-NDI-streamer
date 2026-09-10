@@ -213,6 +213,9 @@ int main(int argc, char* argv[]) {
 
     std::vector<unsigned char> jpeg;
 
+    auto last_video_time = std::chrono::steady_clock::now();
+    const auto video_timeout = std::chrono::seconds(8);
+
     while (true) {
 
         NDIlib_video_frame_v2_t video {};
@@ -229,6 +232,8 @@ int main(int argc, char* argv[]) {
             );
 
         if (type == NDIlib_frame_type_video) {
+
+            last_video_time = std::chrono::steady_clock::now();
 
             std::cerr
                 << "VIDEO "

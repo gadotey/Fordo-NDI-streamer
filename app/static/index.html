@@ -115,6 +115,16 @@ main {
     color: #86efac;
 }
 
+#preview-status.status-connecting {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid #f59e0b;
+    color: #fcd34d;
+}
+
+#preview-status.status-connecting::before {
+    background: #f59e0b;
+}
+
 #preview-status.status-live::before {
     background: #22c55e;
 }
@@ -328,6 +338,27 @@ const previewImage = document.getElementById("preview-image");
 const previewPlaceholder = document.getElementById("preview-placeholder");
 const previewStatus = document.getElementById("preview-status");
 
+let previewWanted = false;
+let previewReconnectTimer = null;
+let activePreviewSource = "";
+
+function setPreviewStatus(text, state) {
+    previewStatus.textContent = text;
+    previewStatus.classList.remove(
+        "status-live",
+        "status-stopped",
+        "status-connecting"
+    );
+
+    if (state === "live") {
+        previewStatus.classList.add("status-live");
+    } else if (state === "connecting") {
+        previewStatus.classList.add("status-connecting");
+    } else {
+        previewStatus.classList.add("status-stopped");
+    }
+}
+
 function updatePreviewSources(items) {
     const current = previewSource.value;
 
@@ -350,27 +381,38 @@ function startPreview() {
     const source = previewSource.value;
 
     if (!source) {
-        previewStatus.textContent = "Select source";
+        setPreviewStatus("Select source", "stopped");
         return;
     }
 
+    previewWanted = true;
+    activePreviewSource = source;
+
     previewImage.src =
-        "/api/preview?source=" + encodeURIComponent(source);
+        "/api/preview?source=" +
+        encodeURIComponent(source) +
+        "&t=" + Date.now();
 
     previewImage.style.display = "block";
     previewPlaceholder.style.display = "none";
-    previewStatus.textContent = "LIVE";
-    previewStatus.classList.remove("status-stopped");
-    previewStatus.classList.add("status-live");
+
+    setPreviewStatus("Connecting", "connecting");
 }
 
 function stopPreview() {
+    previewWanted = false;
+    activePreviewSource = "";
+
+    if (previewReconnectTimer) {
+        clearTimeout(previewReconnectTimer);
+        previewReconnectTimer = null;
+    }
+
     previewImage.src = "";
     previewImage.style.display = "none";
     previewPlaceholder.style.display = "block";
-    previewStatus.textContent = "Stopped";
-    previewStatus.classList.remove("status-live");
-    previewStatus.classList.add("status-stopped");
+
+    setPreviewStatus("Stopped", "stopped");
 }
 
 document.getElementById("start-preview")
@@ -378,6 +420,46 @@ document.getElementById("start-preview")
 
 document.getElementById("stop-preview")
     .addEventListener("click", stopPreview);
+
+previewImage.onerror = () => {
+    if (!previewWanted || !activePreviewSource) {
+        return;
+    }
+
+    setPreviewStatus("Reconnecting", "connecting");
+    previewImage.style.display = "none";
+    previewPlaceholder.style.display = "block";
+    previewPlaceholder.textContent =
+        "NDI source unavailable. Reconnecting...";
+
+    if (previewReconnectTimer) {
+        clearTimeout(previewReconnectTimer);
+    }
+
+    previewReconnectTimer = setTimeout(() => {
+        if (!previewWanted || !activePreviewSource) {
+            return;
+        }
+
+        previewImage.src =
+            "/api/preview?source=" +
+            encodeURIComponent(activePreviewSource) +
+            "&t=" + Date.now();
+
+        previewImage.style.display = "block";
+        previewPlaceholder.style.display = "none";
+    }, 3000);
+};
+
+previewImage.onload = () => {
+    if (!previewWanted) {
+        return;
+    }
+
+    setPreviewStatus("LIVE", "live");
+    previewPlaceholder.textContent =
+        "Select an NDI source and click Start Preview";
+};
 
 function render(data) {
 
@@ -402,6 +484,38 @@ function render(data) {
         data.system.hostname;
 
     updatePreviewSources(data.sources.items);
+
+    if (previewWanted && activePreviewSource) {
+        const sourceAvailable = data.sources.items.some(
+            source => source.name === activePreviewSource
+        );
+
+        if (!sourceAvailable) {
+            if (previewReconnectTimer) {
+                clearTimeout(previewReconnectTimer);
+                previewReconnectTimer = null;
+            }
+
+            previewImage.src = "";
+            previewImage.style.display = "none";
+            previewPlaceholder.style.display = "block";
+            previewPlaceholder.textContent =
+                "NDI source unavailable. Reconnecting...";
+
+            setPreviewStatus("Reconnecting", "connecting");
+        }
+        else if (previewStatus.textContent === "Reconnecting") {
+            setPreviewStatus("Connecting", "connecting");
+
+            previewImage.src =
+                "/api/preview?source=" +
+                encodeURIComponent(activePreviewSource) +
+                "&t=" + Date.now();
+
+            previewImage.style.display = "block";
+            previewPlaceholder.style.display = "none";
+        }
+    }
 
     const sources = document.getElementById("sources");
 
