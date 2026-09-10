@@ -406,6 +406,9 @@ let previewReconnectTimer = null;
 let activePreviewSource = "";
 let autoPreviewAttempted = false;
 
+const applianceMode =
+    new URLSearchParams(window.location.search).get("appliance") === "1";
+
 function setPreviewStatus(text, state) {
     previewStatus.textContent = text;
     previewStatus.classList.remove(
@@ -519,6 +522,13 @@ document.addEventListener("fullscreenchange", () => {
     }
 });
 
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.body.classList.contains("kiosk-mode")) {
+        document.body.classList.remove("kiosk-mode");
+    }
+});
+
+
 document.getElementById("start-preview")
     .addEventListener("click", startPreview);
 
@@ -563,6 +573,10 @@ previewImage.onload = () => {
     setPreviewStatus("LIVE", "live");
     previewPlaceholder.textContent =
         "Select an NDI source and click Start Preview";
+
+    if (applianceMode && !document.body.classList.contains("kiosk-mode")) {
+        document.body.classList.add("kiosk-mode");
+    }
 };
 
 function render(data) {
