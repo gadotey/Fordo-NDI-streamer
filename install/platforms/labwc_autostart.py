@@ -59,9 +59,24 @@ def configure_autostart(project_root: str, dry_run: bool = True) -> bool:
         print("Fordo labwc autostart entry already exists. No changes required.")
         return True
 
+    def is_fordo_entry(line: str) -> bool:
+        return "scripts/start-appliance.sh" in line.strip()
+
+    stale_entries = [
+        line.strip()
+        for line in existing_lines
+        if is_fordo_entry(line)
+    ]
+
     if dry_run:
         print("DRY RUN - labwc autostart will not be modified.")
-        print("Planned entry:")
+        if stale_entries:
+            print("Stale Fordo entries to replace:")
+            for entry in stale_entries:
+                print(f"  {entry}")
+            print("Replacement entry:")
+        else:
+            print("Planned entry:")
         print(target_line)
         return True
 
@@ -73,12 +88,23 @@ def configure_autostart(project_root: str, dry_run: bool = True) -> bool:
         shutil.copy2(autostart, backup)
         print(f"Backup created: {backup}")
 
-    new_lines = list(existing_lines)
+    new_lines = []
+    replacement_added = False
 
-    if new_lines and new_lines[-1].strip():
-        new_lines.append("")
+    for line in existing_lines:
+        if is_fordo_entry(line):
+            if not replacement_added:
+                new_lines.append(target_line)
+                replacement_added = True
+            continue
 
-    new_lines.append(target_line)
+        new_lines.append(line)
+
+    if not replacement_added:
+        if new_lines and new_lines[-1].strip():
+            new_lines.append("")
+        new_lines.append(target_line)
+
     autostart.write_text("\n".join(new_lines) + "\n")
 
     return inspect_autostart(project_root)["fordo_present"]

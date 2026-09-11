@@ -755,3 +755,121 @@ Installer modes are currently:
 - --dry-run: inspection plus planned installation actions
 - --install: intentionally blocked until final installation workflow verification is complete
 
+
+## Verified Installer Hardening Checkpoint
+
+Additional installer safety and portability work was completed and verified on the working Raspberry Pi.
+
+### Python Virtual Environment
+
+`install/platforms/python_environment.py` now supports dry-run operation through `create_virtual_environment(project_root, dry_run=True)`.
+
+Verified behavior on the configured Raspberry Pi:
+
+- the existing `.venv` is detected
+- no virtual environment is recreated
+- the helper is now suitable for both dry-run and future real-install workflows
+- the main installer now uses this helper instead of duplicating virtual-environment logic
+
+The complete integrated installer dry-run was rerun successfully after this change.
+
+### systemd Service Backup Protection
+
+`install/platforms/systemd_service.py` now protects existing systemd configurations before replacement.
+
+Behavior:
+
+- a matching Fordo service remains unchanged
+- a missing service can be installed normally in future install mode
+- an existing mismatched service is backed up before replacement
+- backups use a timestamped filename
+
+The mismatched-service path was safely simulated using a temporary service file under `/tmp`.
+
+The dry-run correctly planned:
+
+- backup of the existing service
+- writing the replacement service
+- `systemctl daemon-reload`
+- enabling `fordo-ndi.service`
+- restarting `fordo-ndi.service`
+
+The production `/etc/systemd/system/fordo-ndi.service` was not modified during this test.
+
+### labwc Stale Autostart Entry Handling
+
+`install/platforms/labwc_autostart.py` now detects stale Fordo appliance startup entries instead of only checking for an exact current path.
+
+This prevents an installation moved to a different directory from accumulating multiple Fordo startup entries.
+
+A temporary labwc autostart file was used to verify the real replacement path.
+
+Verified behavior:
+
+- stale Fordo `scripts/start-appliance.sh` entry detected
+- stale entry replaced with the current project path
+- unrelated labwc startup entries preserved
+- backup created before modification
+- no duplicate Fordo entry created
+- configuration validation returned success
+
+The real user labwc autostart file was not modified during this test.
+
+### Desktop-Aware labwc Configuration
+
+The main installer now checks the detected desktop environment before running labwc-specific appliance autostart logic.
+
+labwc configuration is performed only when the desktop environment identifies labwc.
+
+This prevents generic Linux installations using another desktop environment from receiving Raspberry Pi/labwc-specific autostart configuration.
+
+The Raspberry Pi reports:
+
+`Desktop Environment: labwc:wlroots`
+
+and therefore continues to use the correct labwc configuration path.
+
+The complete integrated dry-run was rerun successfully after this change.
+
+### Safe Fresh Native Preview Build Test
+
+`install/platforms/native_preview.py` now supports an optional output path for native builds.
+
+This allows the installer build process to be tested without deleting or replacing the working production binary.
+
+A real compilation was performed using:
+
+`/tmp/fordo-ndi-preview-test`
+
+Verified result:
+
+- C++ source compiled successfully
+- NDI headers and library linked successfully
+- JPEG dependency linked successfully
+- temporary native executable was created
+- build helper returned success
+- production `native/ndi_preview` was not modified
+- temporary test executable was removed afterward
+
+This verifies that Fordo can build the native NDI preview executable from source on the current Raspberry Pi rather than merely detecting an already-built binary.
+
+### Current Safety Status
+
+At this checkpoint the installer has verified:
+
+- Debian package inspection and missing-package planning
+- NDI runtime inspection
+- Python virtual environment handling
+- Python requirements inspection and dry-run installation
+- exact pinned Python dependency comparison
+- native NDI preview inspection
+- real native preview compilation to a safe temporary target
+- systemd service inspection and backup protection
+- labwc autostart inspection, backup, and stale-entry replacement
+- desktop-aware labwc configuration
+- Raspberry Pi platform validation
+- complete integrated dry-run
+
+`--install` remains intentionally disabled.
+
+No production service, appliance autostart configuration, installed package, Python environment, or working native preview binary was modified while performing these installer-hardening tests.

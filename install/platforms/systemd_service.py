@@ -81,6 +81,8 @@ def install_service(project_root, dry_run=True):
     if dry_run:
         print("DRY RUN - systemd service will not be modified.")
         print("Planned actions:")
+        if state["service_exists"]:
+            print(f"  backup existing {SERVICE_PATH}")
         print(f"  write {SERVICE_PATH}")
         print("  systemctl daemon-reload")
         print(f"  systemctl enable {SERVICE_NAME}")
@@ -89,6 +91,7 @@ def install_service(project_root, dry_run=True):
 
     import subprocess
     import tempfile
+    from datetime import datetime
 
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -100,6 +103,19 @@ def install_service(project_root, dry_run=True):
         temp_path = temp.name
 
     try:
+        if state["service_exists"]:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            backup_path = SERVICE_PATH.with_name(
+                f"{SERVICE_NAME}.backup-{timestamp}"
+            )
+
+            print(f"Backing up existing systemd service to {backup_path}")
+
+            subprocess.run(
+                ["sudo", "cp", str(SERVICE_PATH), str(backup_path)],
+                check=True,
+            )
+
         subprocess.run(
             ["sudo", "cp", temp_path, str(SERVICE_PATH)],
             check=True,

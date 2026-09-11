@@ -22,20 +22,24 @@ def venv_is_valid(project_root: str) -> bool:
     return venv.is_dir() and python_bin.exists() and pip_bin.exists()
 
 
-def create_virtual_environment(project_root: str) -> bool:
+def create_virtual_environment(project_root: str, dry_run: bool = False) -> bool:
     if venv_is_valid(project_root):
         print("Python virtual environment already exists. No changes made.")
         return True
 
     venv = get_venv_path(project_root)
+    command = [sys.executable, "-m", "venv", str(venv)]
+
+    if dry_run:
+        print("DRY RUN - Python virtual environment will not be created.")
+        print("Planned command:")
+        print(" ".join(command))
+        return True
 
     print(f"Creating Python virtual environment: {venv}")
 
     try:
-        subprocess.run(
-            [sys.executable, "-m", "venv", str(venv)],
-            check=True,
-        )
+        subprocess.run(command, check=True)
     except subprocess.CalledProcessError as exc:
         print(f"Failed to create Python virtual environment: {exc}")
         return False

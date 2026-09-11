@@ -152,25 +152,36 @@ def main() -> None:
         if dry_run:
             install_service(environment["project_root"], dry_run=True)
 
-        autostart_state = inspect_autostart(environment["project_root"])
-        print_autostart_state(autostart_state)
+        desktop_environment = (
+            environment.get("desktop_environment") or ""
+        ).lower()
 
-        if dry_run:
-            configure_autostart(environment["project_root"], dry_run=True)
+        if "labwc" in desktop_environment:
+            autostart_state = inspect_autostart(environment["project_root"])
+            print_autostart_state(autostart_state)
+
+            if dry_run:
+                configure_autostart(
+                    environment["project_root"],
+                    dry_run=True,
+                )
+        else:
+            print()
+            print("labwc autostart configuration skipped for this desktop environment.")
 
         linux_state = inspect_linux_installation(environment["project_root"])
         print_linux_installation_state(linux_state)
 
         if dry_run:
-            if venv_is_valid(environment["project_root"]):
-                print()
-                print("Python virtual environment already exists. No changes required.")
-            else:
-                print()
-                print("DRY RUN - Python virtual environment would be created.")
-                print(f"Target: {Path(environment['project_root']) / '.venv'}")
+            create_virtual_environment(
+                environment["project_root"],
+                dry_run=True,
+            )
 
-            install_requirements(environment["project_root"], dry_run=True)
+            install_requirements(
+                environment["project_root"],
+                dry_run=True,
+            )
 
         if linux_state["virtual_environment"] and linux_state["requirements_file"]:
             requirements_result = compare_requirements(environment["project_root"])

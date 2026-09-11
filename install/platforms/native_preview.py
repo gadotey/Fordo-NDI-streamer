@@ -30,8 +30,9 @@ def inspect_native_build(project_root: str) -> dict:
     }
 
 
-def build_command(project_root: str) -> list[str]:
+def build_command(project_root: str, output_path: str | None = None) -> list[str]:
     paths = get_paths(project_root)
+    target = Path(output_path) if output_path else paths["binary"]
 
     return [
         "g++",
@@ -44,7 +45,7 @@ def build_command(project_root: str) -> list[str]:
         "-ljpeg",
         "-Wl,-rpath,/usr/local/lib",
         "-o",
-        str(paths["binary"]),
+        str(target),
     ]
 
 
@@ -60,8 +61,17 @@ def print_native_build_state(state: dict) -> None:
     print("=" * 45)
 
 
-def build_native_preview(project_root: str, dry_run: bool = True) -> bool:
+def build_native_preview(
+    project_root: str,
+    dry_run: bool = True,
+    output_path: str | None = None,
+) -> bool:
     state = inspect_native_build(project_root)
+    target = (
+        Path(output_path)
+        if output_path
+        else get_paths(project_root)["binary"]
+    )
 
     required = [
         "compiler",
@@ -79,11 +89,12 @@ def build_native_preview(project_root: str, dry_run: bool = True) -> bool:
             print(f"  - {item}")
         return False
 
-    if state["binary"]:
-        print("Native preview binary already exists. No build required.")
+    if target.is_file():
+        print(f"Native preview binary already exists: {target}")
+        print("No build required.")
         return True
 
-    command = build_command(project_root)
+    command = build_command(project_root, output_path=output_path)
 
     if dry_run:
         print("DRY RUN - native preview will not be compiled.")
@@ -99,11 +110,11 @@ def build_native_preview(project_root: str, dry_run: bool = True) -> bool:
         print(f"Native preview compilation failed: {exc}")
         return False
 
-    if get_paths(project_root)["binary"].is_file():
-        print("Native NDI preview compiled successfully.")
+    if target.is_file():
+        print(f"Native NDI preview compiled successfully: {target}")
         return True
 
-    print("Compilation completed, but native preview binary was not found.")
+    print(f"Compilation completed, but binary was not found: {target}")
     return False
 
 
