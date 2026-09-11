@@ -12,7 +12,7 @@ done
 sleep 3
 
 exec /usr/bin/chromium \
-    --user-data-dir=/home/metrotimer/.config/fordo-chromium \
+    --user-data-dir="$HOME/.config/fordo-chromium" \
     --password-store=basic \
     --kiosk \
     --no-first-run \
