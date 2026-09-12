@@ -18,6 +18,7 @@ from platforms.systemd_service import inspect_service, print_service_state, inst
 from platforms.labwc_autostart import inspect_autostart, print_autostart_state, configure_autostart
 from platforms.python_environment import venv_is_valid, create_virtual_environment
 from platforms.python_requirements import verify_requirements, install_requirements
+from platforms.architecture import detect_architecture
 
 
 def is_raspberry_pi() -> bool:
@@ -48,11 +49,14 @@ def get_raspberry_pi_model() -> str | None:
 def detect_environment() -> dict:
     script_path = Path(__file__).resolve()
     project_root = script_path.parent.parent
+    architecture_info = detect_architecture()
 
     return {
         "operating_system": platform.system(),
         "platform_release": platform.release(),
-        "architecture": platform.machine(),
+        "architecture": architecture_info["raw"],
+        "architecture_class": architecture_info["normalized"],
+        "architecture_bits": architecture_info["bits"],
         "python_version": platform.python_version(),
         "current_user": getpass.getuser(),
         "home_directory": str(Path.home()),
@@ -137,7 +141,9 @@ def main() -> None:
             print()
             print("Debian package checks skipped for this Linux distribution.")
 
-        ndi_state = inspect_ndi_runtime()
+        ndi_state = inspect_ndi_runtime(
+            environment["architecture_class"]
+        )
         print_ndi_runtime_state(ndi_state)
 
         native_state = inspect_native_build(environment["project_root"])

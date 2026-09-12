@@ -2,12 +2,15 @@
 
 from pathlib import Path
 
+from platforms.architecture import normalize_architecture
 
-SUPPORTED_ARCHITECTURES = {"aarch64", "arm64"}
+
+SUPPORTED_ARCHITECTURES = {"arm64", "arm32"}
 
 
 def validate_raspberry_pi(environment: dict) -> dict:
-    architecture = environment.get("architecture")
+    raw_architecture = environment.get("architecture")
+    architecture = normalize_architecture(raw_architecture)
     model = environment.get("raspberry_pi_model")
 
     results = {

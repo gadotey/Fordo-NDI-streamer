@@ -873,3 +873,169 @@ At this checkpoint the installer has verified:
 `--install` remains intentionally disabled.
 
 No production service, appliance autostart configuration, installed package, Python environment, or working native preview binary was modified while performing these installer-hardening tests.
+
+## Cross-Platform Portability Checkpoint
+
+Additional portability improvements were completed and verified while preserving the working Raspberry Pi deployment.
+
+### Portable Chromium Browser Detection
+
+`scripts/start-appliance.sh` no longer assumes Chromium is located specifically at `/usr/bin/chromium`.
+
+The appliance startup script now searches for a supported Chromium-based browser in this order:
+
+- chromium
+- chromium-browser
+- google-chrome
+- google-chrome-stable
+
+If no supported browser is found, the script exits with a clear error instead of attempting an invalid executable path.
+
+On the current Raspberry Pi the detection correctly resolves:
+
+`/usr/bin/chromium`
+
+This is the same browser executable used by the existing working appliance configuration.
+
+The modified startup script passed `bash -n` syntax validation.
+
+### Windows-Aware Python Requirements
+
+`requirements.txt` now defines uvloop as:
+
+`uvloop==0.22.1; sys_platform != "win32"`
+
+This preserves uvloop on the current Raspberry Pi/Linux deployment while allowing future Windows installations to skip the unsupported dependency.
+
+The marker was evaluated against a simulated Windows environment and correctly returned false.
+
+On the Raspberry Pi, uvloop remains applicable and the requirements checker continues to validate all 20 pinned requirements.
+
+### Self-Contained Requirements Checker
+
+`install/checks/python_requirements_check.py` was updated to understand the `sys_platform` marker used by the uvloop requirement.
+
+An intermediate implementation used the Python `packaging` library. Testing showed that `packaging` was being supplied by the Raspberry Pi operating system rather than by the Fordo project itself.
+
+To avoid creating a bootstrap dependency on fresh Windows, macOS, or Linux installations, that dependency was removed.
+
+The requirements checker is now self-contained and supports the platform-marker form currently required by Fordo.
+
+Verified result on the Raspberry Pi:
+
+- 20 applicable pinned requirements detected
+- uvloop remains required on Linux
+- installed requirements status SATISFIED
+- no dependency on the external `packaging` module
+
+### Integrated Portability Validation
+
+After these changes:
+
+- the complete Fordo installer dry-run passed
+- all 20 applicable Python requirements were satisfied
+- native preview detection remained healthy
+- systemd service configuration remained healthy
+- labwc appliance autostart remained healthy
+- Raspberry Pi validation passed
+- the entire `install` Python package passed compile validation
+- `scripts/start-appliance.sh` passed Bash syntax validation
+
+These changes improve Linux distribution and future Windows portability without changing the behavior of the working Raspberry Pi appliance.
+
+`--install` remains intentionally disabled until the complete real installation sequence and final health verification are implemented and tested.
+
+## ARM32 and ARM64 Architecture Support Checkpoint
+
+Fordo's installer now includes explicit CPU architecture detection and NDI runtime architecture validation.
+
+### Platform Architecture Detection
+
+A new module was added:
+
+`install/platforms/architecture.py`
+
+It normalizes common architecture names into Fordo architecture classes including:
+
+- `aarch64` / `arm64` -> `arm64`
+- `armv7l` / `armv7` / `armhf` -> `arm32`
+- `x86_64` / `amd64` -> `x86_64`
+- `i386` / `i686` / `x86` -> `x86_32`
+
+The installer now reports:
+
+- raw architecture
+- normalized architecture class
+- architecture bitness
+
+Verified on the current Raspberry Pi:
+
+- raw architecture: `aarch64`
+- architecture class: `arm64`
+- architecture bits: `64`
+
+### Raspberry Pi Architecture Validation
+
+Raspberry Pi platform validation now accepts both:
+
+- `arm64`
+- `arm32`
+
+Simulation tests verified that both `aarch64` and `armv7l` normalize to supported Raspberry Pi architecture classes.
+
+### NDI Runtime Architecture Inspection
+
+`install/platforms/ndi_runtime.py` now inspects the actual ELF header of the installed NDI shared library.
+
+This inspection is implemented directly in Python and does not depend on the external `file` utility.
+
+The ELF parser identifies:
+
+- ELF32 versus ELF64
+- ARM32
+- ARM64
+- x86 32-bit
+- x86 64-bit
+
+The currently installed NDI runtime was verified as:
+
+`ELF64 machine=183 architecture=arm64`
+
+This matches the current Raspberry Pi's `arm64` architecture.
+
+### Architecture Compatibility Safety
+
+The installer now compares the detected system architecture against the installed NDI runtime architecture.
+
+A matching architecture is required before the NDI runtime is considered ready.
+
+Verified behavior:
+
+- ARM64 system + ARM64 NDI runtime -> READY
+- ARM32 system + ARM64 NDI runtime -> NOT READY
+
+This prevents Fordo from attempting to use a shared NDI library built for the wrong CPU architecture.
+
+### ARM32 Validation
+
+A synthetic ARM32 ELF header was used to validate the architecture parser without modifying the installed NDI runtime.
+
+Verified result:
+
+- ELF class: 32-bit
+- ELF machine: 40
+- normalized architecture: `arm32`
+
+This confirms that Fordo's architecture parser recognizes ARM32 libraries correctly.
+
+### Current Architecture Support Status
+
+ARM64 support has been verified on physical Raspberry Pi hardware with the installed NDI runtime.
+
+ARM32 platform detection, Raspberry Pi validation, ELF parsing, and mismatch protection have been validated through simulation.
+
+A complete ARM32 Fordo deployment must still be tested on actual 32-bit Raspberry Pi hardware with a compatible 32-bit NDI runtime before ARM32 can be considered hardware-verified.
+
+The installer must not attempt to use a 64-bit NDI runtime on a 32-bit system or a 32-bit NDI runtime on a 64-bit system.
+
+`--install` remains intentionally disabled while the complete installation workflow is still being implemented and validated.

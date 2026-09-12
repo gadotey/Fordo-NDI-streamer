@@ -6,7 +6,11 @@ import sys
 from pathlib import Path
 
 
-PINNED_REQUIREMENT = re.compile(r"^\s*([A-Za-z0-9_.-]+)==([^\s#]+)\s*$")
+PINNED_REQUIREMENT = re.compile(
+    r'^\s*([A-Za-z0-9_.-]+)==([^\s;#]+)'
+    r'(?:\s*;\s*sys_platform\s*(!=|==)\s*["\']([^"\']+)["\'])?'
+    r'\s*$'
+)
 
 
 def get_venv_python(project_root: str) -> Path:
@@ -16,6 +20,10 @@ def get_venv_python(project_root: str) -> Path:
         return venv / "Scripts" / "python.exe"
 
     return venv / "bin" / "python"
+
+
+def normalize_package_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def parse_pinned_requirements(requirements_path: Path) -> dict:
@@ -29,9 +37,21 @@ def parse_pinned_requirements(requirements_path: Path) -> dict:
 
         match = PINNED_REQUIREMENT.match(line)
 
-        if match:
-            package_name = match.group(1).lower().replace("_", "-")
-            required[package_name] = match.group(2)
+        if not match:
+            continue
+
+        package_name = normalize_package_name(match.group(1))
+        version = match.group(2)
+        operator = match.group(3)
+        marker_platform = match.group(4)
+
+        if operator and marker_platform:
+            if operator == "!=" and sys.platform == marker_platform:
+                continue
+            if operator == "==" and sys.platform != marker_platform:
+                continue
+
+        required[package_name] = version
 
     return required
 

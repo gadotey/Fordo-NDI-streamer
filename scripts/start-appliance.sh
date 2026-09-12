@@ -11,7 +11,21 @@ done
 # Give NDI discovery a moment to initialize.
 sleep 3
 
-exec /usr/bin/chromium \
+BROWSER=""
+
+for candidate in chromium chromium-browser google-chrome google-chrome-stable; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        BROWSER="$(command -v "$candidate")"
+        break
+    fi
+done
+
+if [ -z "$BROWSER" ]; then
+    echo "Fordo appliance startup failed: no supported Chromium-based browser found." >&2
+    exit 1
+fi
+
+exec "$BROWSER" \
     --user-data-dir="$HOME/.config/fordo-chromium" \
     --password-store=basic \
     --kiosk \
