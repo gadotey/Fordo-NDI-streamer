@@ -12,6 +12,17 @@ def file_exists(path: str) -> bool:
     return Path(path).exists()
 
 
+def supported_browser_exists() -> bool:
+    candidates = (
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
+        "google-chrome-stable",
+    )
+
+    return any(command_exists(candidate) for candidate in candidates)
+
+
 def check_linux_requirements() -> dict:
     return {
         "python3": command_exists("python3"),
@@ -19,7 +30,7 @@ def check_linux_requirements() -> dict:
         "g++": command_exists("g++"),
         "git": command_exists("git"),
         "curl": command_exists("curl"),
-        "chromium": command_exists("chromium"),
+        "chromium_browser": supported_browser_exists(),
         "systemctl": command_exists("systemctl"),
         "libjpeg_header": file_exists("/usr/include/jpeglib.h"),
         "ndi_library": (

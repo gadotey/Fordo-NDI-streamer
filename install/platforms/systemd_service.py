@@ -1,6 +1,7 @@
 import getpass
 import grp
 import os
+import subprocess
 from pathlib import Path
 
 
@@ -70,6 +71,18 @@ def print_service_state(state):
     print("=" * 50)
 
 
+def service_is_active() -> bool:
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "--quiet", SERVICE_NAME],
+            check=False,
+        )
+    except OSError:
+        return False
+
+    return result.returncode == 0
+
+
 def install_service(project_root, dry_run=True):
     expected = render_service(project_root)
     state = inspect_service(project_root)
@@ -132,6 +145,11 @@ def install_service(project_root, dry_run=True):
             ["sudo", "systemctl", "restart", SERVICE_NAME],
             check=True,
         )
+
+    except subprocess.CalledProcessError as exc:
+        print(f"systemd service installation failed: {exc}")
+        return False
+
     finally:
         Path(temp_path).unlink(missing_ok=True)
 

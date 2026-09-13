@@ -4,16 +4,33 @@ import shutil
 import subprocess
 
 
-REQUIRED_PACKAGES = {
+BASE_REQUIRED_PACKAGES = {
     "python3": "python3",
     "pip3": "python3-pip",
     "venv": "python3-venv",
     "g++": "g++",
     "git": "git",
     "curl": "curl",
-    "chromium": "chromium",
-    "jpeg": "libjpeg62-turbo-dev",
 }
+
+
+def required_packages_for_distribution(distro_info: dict | None = None) -> dict:
+    distro_info = distro_info or {}
+    distro_id = (distro_info.get("id") or "").lower()
+
+    packages = dict(BASE_REQUIRED_PACKAGES)
+
+    if distro_id == "ubuntu":
+        packages["chromium"] = "chromium-browser"
+        packages["jpeg"] = "libjpeg-dev"
+    elif distro_id in {"debian", "raspbian"}:
+        packages["chromium"] = "chromium"
+        packages["jpeg"] = "libjpeg62-turbo-dev"
+    else:
+        packages["chromium"] = "chromium"
+        packages["jpeg"] = "libjpeg-dev"
+
+    return packages
 
 
 def package_is_installed(package: str) -> bool:
@@ -29,10 +46,11 @@ def package_is_installed(package: str) -> bool:
     )
 
 
-def detect_package_state() -> dict:
+def detect_package_state(distro_info: dict | None = None) -> dict:
     state = {}
+    required_packages = required_packages_for_distribution(distro_info)
 
-    for component, package in REQUIRED_PACKAGES.items():
+    for component, package in required_packages.items():
         state[component] = {
             "package": package,
             "installed": package_is_installed(package),
@@ -76,7 +94,11 @@ def print_package_state(state: dict) -> None:
 
 
 
-def install_missing_packages(state: dict, dry_run: bool = True) -> bool:
+def install_missing_packages(
+    state: dict,
+    dry_run: bool = True,
+    distro_info: dict | None = None,
+) -> bool:
     packages = missing_packages(state)
 
     if not packages:
@@ -114,7 +136,9 @@ def install_missing_packages(state: dict, dry_run: bool = True) -> bool:
         print(f"Debian package installation failed: {exc}")
         return False
 
-    remaining = missing_packages(detect_package_state())
+    remaining = missing_packages(
+        detect_package_state(distro_info)
+    )
 
     if remaining:
         print("Some required packages are still missing:")

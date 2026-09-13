@@ -14,11 +14,12 @@ from platforms.debian_packages import detect_package_state, print_package_state,
 from platforms.linux_distribution import detect_linux_distribution, print_linux_distribution
 from platforms.ndi_runtime import inspect_ndi_runtime, print_ndi_runtime_state
 from platforms.native_preview import inspect_native_build, print_native_build_state, build_native_preview
-from platforms.systemd_service import inspect_service, print_service_state, install_service
+from platforms.systemd_service import inspect_service, print_service_state, install_service, service_is_active
 from platforms.labwc_autostart import inspect_autostart, print_autostart_state, configure_autostart
 from platforms.python_environment import venv_is_valid, create_virtual_environment
 from platforms.python_requirements import verify_requirements, install_requirements
 from platforms.architecture import detect_architecture
+from checks.service_health import wait_for_health, print_health_result
 
 
 def is_raspberry_pi() -> bool:
@@ -108,6 +109,113 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def ensure_appliance_script_executable(project_root: str, dry_run: bool = True) -> bool:
+    script = Path(project_root) / "scripts" / "start-appliance.sh"
+
+    if not script.is_file():
+        print(f"Appliance startup script was not found: {script}")
+        return False
+
+    if script.stat().st_mode & 0o111:
+        print("Appliance startup script is already executable.")
+        return True
+
+    if dry_run:
+        print("DRY RUN - appliance startup script permissions will not be changed.")
+        print(f"Planned action: chmod +x {script}")
+        return True
+
+    try:
+        script.chmod(script.stat().st_mode | 0o111)
+    except OSError as exc:
+        print(f"Failed to make appliance startup script executable: {exc}")
+        return False
+
+    if script.stat().st_mode & 0o111:
+        print("Appliance startup script is now executable.")
+        return True
+
+    print("Appliance startup script permission update failed.")
+    return False
+
+
+def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True) -> bool:
+    project_root = environment["project_root"]
+
+    if distro_info["is_debian_family"]:
+        package_state = detect_package_state(distro_info)
+        print_package_state(package_state)
+
+        if not install_missing_packages(
+            package_state,
+            dry_run=dry_run,
+            distro_info=distro_info,
+        ):
+            print("Installation stopped: required system packages could not be installed.")
+            return False
+    else:
+        print()
+        print("Automatic package installation is not implemented for this Linux distribution.")
+        return False
+
+    if not create_virtual_environment(project_root, dry_run=dry_run):
+        print("Installation stopped: Python virtual environment setup failed.")
+        return False
+
+    if not install_requirements(project_root, dry_run=dry_run):
+        print("Installation stopped: Python requirements installation failed.")
+        return False
+
+    ndi_state = inspect_ndi_runtime(environment["architecture_class"])
+    print_ndi_runtime_state(ndi_state)
+
+    if not ndi_state["runtime_ready"]:
+        print("Installation stopped: compatible NDI runtime was not found.")
+        return False
+
+    if not build_native_preview(project_root, dry_run=dry_run):
+        print("Installation stopped: native NDI preview build failed.")
+        return False
+
+    if not install_service(project_root, dry_run=dry_run):
+        print("Installation stopped: systemd service installation failed.")
+        return False
+
+    if not dry_run:
+        if not service_is_active():
+            print("Installation stopped: Fordo systemd service is not active.")
+            return False
+
+        print("Fordo systemd service is active.")
+
+        health_result = wait_for_health()
+        print_health_result(health_result)
+
+        if not health_result["healthy"]:
+            print("Installation stopped: Fordo service health check failed.")
+            return False
+
+    if not ensure_appliance_script_executable(project_root, dry_run=dry_run):
+        print("Installation stopped: appliance startup script is not executable.")
+        return False
+
+    desktop_environment = (
+        environment.get("desktop_environment") or ""
+    ).lower()
+
+    if "labwc" in desktop_environment:
+        if not configure_autostart(project_root, dry_run=dry_run):
+            print("Installation stopped: labwc autostart configuration failed.")
+            return False
+
+    print()
+    print(
+        "Fordo Linux installation "
+        + ("DRY RUN completed successfully." if dry_run else "completed successfully.")
+    )
+    return True
+
+
 def main() -> None:
     args = parse_arguments()
 
@@ -131,12 +239,17 @@ def main() -> None:
         distro_info = detect_linux_distribution()
         print_linux_distribution(distro_info)
 
-        if distro_info["is_debian_family"]:
-            package_state = detect_package_state()
-            print_package_state(package_state)
+        if dry_run:
+            success = run_linux_install(
+                environment,
+                distro_info,
+                dry_run=True,
+            )
+            raise SystemExit(0 if success else 1)
 
-            if dry_run:
-                install_missing_packages(package_state, dry_run=True)
+        if distro_info["is_debian_family"]:
+            package_state = detect_package_state(distro_info)
+            print_package_state(package_state)
         else:
             print()
             print("Debian package checks skipped for this Linux distribution.")
@@ -149,14 +262,12 @@ def main() -> None:
         native_state = inspect_native_build(environment["project_root"])
         print_native_build_state(native_state)
 
-        if dry_run:
-            build_native_preview(environment["project_root"], dry_run=True)
-
         service_state = inspect_service(environment["project_root"])
         print_service_state(service_state)
 
-        if dry_run:
-            install_service(environment["project_root"], dry_run=True)
+        if service_state["service_matches"]:
+            health_result = wait_for_health()
+            print_health_result(health_result)
 
         desktop_environment = (
             environment.get("desktop_environment") or ""
@@ -166,11 +277,6 @@ def main() -> None:
             autostart_state = inspect_autostart(environment["project_root"])
             print_autostart_state(autostart_state)
 
-            if dry_run:
-                configure_autostart(
-                    environment["project_root"],
-                    dry_run=True,
-                )
         else:
             print()
             print("labwc autostart configuration skipped for this desktop environment.")
@@ -178,23 +284,11 @@ def main() -> None:
         linux_state = inspect_linux_installation(environment["project_root"])
         print_linux_installation_state(linux_state)
 
-        if dry_run:
-            create_virtual_environment(
-                environment["project_root"],
-                dry_run=True,
-            )
-
-            install_requirements(
-                environment["project_root"],
-                dry_run=True,
-            )
-
         if linux_state["virtual_environment"] and linux_state["requirements_file"]:
             requirements_result = compare_requirements(environment["project_root"])
             print_comparison(requirements_result)
 
-            if not dry_run:
-                verify_requirements(environment["project_root"])
+            verify_requirements(environment["project_root"])
 
         if environment["is_raspberry_pi"]:
             pi_results = validate_raspberry_pi(environment)

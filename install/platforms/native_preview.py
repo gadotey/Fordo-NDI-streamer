@@ -73,21 +73,42 @@ def build_native_preview(
         else get_paths(project_root)["binary"]
     )
 
-    required = [
-        "compiler",
+    always_required = [
         "source",
         "ndi_header",
         "ndi_library",
-        "jpeg_header",
     ]
 
-    missing = [item for item in required if not state[item]]
+    missing = [item for item in always_required if not state[item]]
 
     if missing:
         print("Native preview cannot be built. Missing:")
         for item in missing:
             print(f"  - {item}")
         return False
+
+    package_managed = [
+        "compiler",
+        "jpeg_header",
+    ]
+
+    missing_packages = [
+        item for item in package_managed if not state[item]
+    ]
+
+    if missing_packages and not dry_run:
+        print("Native preview cannot be built. Missing:")
+        for item in missing_packages:
+            print(f"  - {item}")
+        return False
+
+    if missing_packages and dry_run:
+        print(
+            "DRY RUN - build prerequisites expected from the "
+            "system package installation stage:"
+        )
+        for item in missing_packages:
+            print(f"  - {item}")
 
     if target.is_file():
         print(f"Native preview binary already exists: {target}")

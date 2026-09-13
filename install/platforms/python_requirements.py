@@ -58,10 +58,6 @@ def install_requirements(project_root: str, dry_run: bool = False) -> bool:
     python_bin = get_venv_python(project_root)
     req_file = requirements_file(project_root)
 
-    if not python_bin.exists():
-        print("Virtual environment Python was not found.")
-        return False
-
     if not req_file.exists():
         print("requirements.txt was not found.")
         return False
@@ -80,6 +76,10 @@ def install_requirements(project_root: str, dry_run: bool = False) -> bool:
         print("Planned command:")
         print(" ".join(command))
         return True
+
+    if not python_bin.exists():
+        print("Virtual environment Python was not found.")
+        return False
 
     print("Installing Python requirements...")
 

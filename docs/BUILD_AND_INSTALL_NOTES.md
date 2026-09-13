@@ -1039,3 +1039,379 @@ A complete ARM32 Fordo deployment must still be tested on actual 32-bit Raspberr
 The installer must not attempt to use a 64-bit NDI runtime on a 32-bit system or a 32-bit NDI runtime on a 64-bit system.
 
 `--install` remains intentionally disabled while the complete installation workflow is still being implemented and validated.
+
+
+## Ordered Linux Installer Pipeline and Health Validation Checkpoint
+
+Fordo now has a single ordered Linux installation pipeline used by `--dry-run`.
+
+The pipeline sequence is:
+
+1. Detect Debian-family distribution
+2. Inspect required system packages
+3. Plan or install missing Debian packages
+4. Create the Python virtual environment
+5. Plan or install Python requirements
+6. Validate NDI runtime architecture compatibility
+7. Build the native NDI preview binary
+8. Install or validate the systemd service
+9. Verify the systemd service is active during real installation
+10. Verify the Fordo HTTP health endpoint during real installation
+11. Ensure the appliance startup script is executable
+12. Configure labwc autostart when the desktop environment is labwc
+
+The full installer dry-run was verified successfully on the Raspberry Pi 5.
+
+### Fresh-Machine Dry-Run Improvements
+
+The installer dry-run now correctly models steps that depend on earlier planned installation stages.
+
+Python requirements installation no longer requires `.venv/bin/python` to physically exist during dry-run.
+
+This allows the installer to:
+
+- plan virtual environment creation
+- immediately plan the subsequent pip installation command
+- complete a dry-run on a fresh machine where `.venv` does not yet exist
+
+The real installation path still requires the virtual environment Python interpreter to exist before installing requirements.
+
+This fresh-machine behavior was verified using a temporary project directory with no `.venv`.
+
+### Native Build Dry-Run Improvements
+
+The native preview build now distinguishes between dependencies supplied by Fordo's package-installation stage and dependencies that Fordo currently expects to be supplied separately.
+
+During dry-run, these package-managed prerequisites may be absent:
+
+- `g++`
+- JPEG development headers
+
+The installer reports that they are expected from the system package installation stage and still displays the planned native build command.
+
+These remain mandatory during a real build.
+
+The following native build prerequisites remain mandatory even during dry-run:
+
+- `native/ndi_preview.cpp`
+- NDI header
+- NDI shared library
+
+This is intentional because Fordo does not currently install or redistribute the NDI runtime.
+
+A simulated fresh-machine native build dry-run with the compiler and JPEG header marked missing completed successfully and produced the expected `g++` command.
+
+### Distribution-Aware Debian Package Selection
+
+Debian-family package selection is now distribution aware.
+
+Current mappings include:
+
+Debian / Raspberry Pi OS / Raspbian:
+
+- Chromium: `chromium`
+- JPEG development package: `libjpeg62-turbo-dev`
+
+Ubuntu:
+
+- Chromium: `chromium-browser`
+- JPEG development package: `libjpeg-dev`
+
+Ubuntu package mapping has been implemented but has not yet been verified on a real Ubuntu installation.
+
+Chromium packaging on Ubuntu may involve Snap or transitional packages and must be tested before Ubuntu support is considered fully verified.
+
+### Portable Chromium Detection
+
+Linux requirement checks now recognize the following Chromium-based browser commands:
+
+- `chromium`
+- `chromium-browser`
+- `google-chrome`
+- `google-chrome-stable`
+
+This matches the browser-selection behavior already used by the Fordo appliance startup script.
+
+### systemd Service Validation
+
+The installer now includes a `service_is_active()` check using:
+
+`systemctl is-active --quiet fordo-ndi.service`
+
+During a future real installation, Fordo will require the systemd service to report active before continuing to application-level health validation.
+
+systemd installation failures caused by `subprocess.CalledProcessError` are now caught and returned as installer failures instead of terminating the installer unexpectedly.
+
+The active-state helper was verified against the running Fordo service and returned `True`.
+
+### Application-Level Health Validation
+
+A new health checker was added at:
+
+`install/checks/service_health.py`
+
+It checks:
+
+`http://127.0.0.1:8080/api/health`
+
+Fordo now considers the application healthy only when:
+
+- the endpoint is reachable
+- HTTP status is `200`
+- the response is valid JSON
+- the JSON response contains `"status": "ok"`
+
+The running Raspberry Pi appliance returned:
+
+- reachable: YES
+- status code: 200
+- healthy: YES
+- successful attempt: 1
+
+### Appliance Startup Script Permissions
+
+The installer now verifies that:
+
+`scripts/start-appliance.sh`
+
+exists and has at least one executable permission bit.
+
+During dry-run, Fordo reports the planned `chmod +x` operation if required.
+
+During real installation, the installer will make the script executable and verify that the permission update succeeded.
+
+The current Raspberry Pi script permissions were verified as:
+
+`775`
+
+### Check Mode and Dry-Run Separation
+
+Installer control flow was cleaned up so the modes have distinct responsibilities.
+
+`--dry-run` uses the ordered Linux installation pipeline and exits after that pipeline completes.
+
+Normal `--check` mode remains inspection-only and performs:
+
+- system requirement inspection
+- distribution/package inspection
+- NDI runtime inspection
+- native build state inspection
+- systemd service inspection
+- Fordo HTTP health check
+- labwc autostart inspection
+- Linux installation state inspection
+- Python requirements comparison
+- `pip check`
+- Raspberry Pi platform validation
+
+Obsolete and unreachable dry-run branches were removed from the check-mode path.
+
+Both modes were re-tested after this cleanup.
+
+Verified results:
+
+- `python3 install/install.py --dry-run` -> PASSED
+- `python3 install/install.py --check` -> PASSED
+- Fordo HTTP health -> PASSED
+- Python package dependency check -> PASSED
+- Raspberry Pi platform validation -> PASSED
+
+### Installation Safety Status
+
+`--install` remains intentionally disabled.
+
+The installer currently contains the real-install execution path, but the command-line safety gate still prevents it from making system changes.
+
+The safety message remains:
+
+`INSTALL MODE IS NOT ENABLED YET.`
+
+Real installation should not be enabled until the remaining fresh-install validation and disposable-system testing are complete.
+
+
+## Ordered Linux Installer Pipeline and Health Validation Checkpoint
+
+Fordo now has a single ordered Linux installation pipeline used by `--dry-run`.
+
+The pipeline sequence is:
+
+1. Detect Debian-family distribution
+2. Inspect required system packages
+3. Plan or install missing Debian packages
+4. Create the Python virtual environment
+5. Plan or install Python requirements
+6. Validate NDI runtime architecture compatibility
+7. Build the native NDI preview binary
+8. Install or validate the systemd service
+9. Verify the systemd service is active during real installation
+10. Verify the Fordo HTTP health endpoint during real installation
+11. Ensure the appliance startup script is executable
+12. Configure labwc autostart when the desktop environment is labwc
+
+The full installer dry-run was verified successfully on the Raspberry Pi 5.
+
+### Fresh-Machine Dry-Run Improvements
+
+The installer dry-run now correctly models steps that depend on earlier planned installation stages.
+
+Python requirements installation no longer requires `.venv/bin/python` to physically exist during dry-run.
+
+This allows the installer to:
+
+- plan virtual environment creation
+- immediately plan the subsequent pip installation command
+- complete a dry-run on a fresh machine where `.venv` does not yet exist
+
+The real installation path still requires the virtual environment Python interpreter to exist before installing requirements.
+
+This fresh-machine behavior was verified using a temporary project directory with no `.venv`.
+
+### Native Build Dry-Run Improvements
+
+The native preview build now distinguishes between dependencies supplied by Fordo's package-installation stage and dependencies that Fordo currently expects to be supplied separately.
+
+During dry-run, these package-managed prerequisites may be absent:
+
+- `g++`
+- JPEG development headers
+
+The installer reports that they are expected from the system package installation stage and still displays the planned native build command.
+
+These remain mandatory during a real build.
+
+The following native build prerequisites remain mandatory even during dry-run:
+
+- `native/ndi_preview.cpp`
+- NDI header
+- NDI shared library
+
+This is intentional because Fordo does not currently install or redistribute the NDI runtime.
+
+A simulated fresh-machine native build dry-run with the compiler and JPEG header marked missing completed successfully and produced the expected `g++` command.
+
+### Distribution-Aware Debian Package Selection
+
+Debian-family package selection is now distribution aware.
+
+Current mappings include:
+
+Debian / Raspberry Pi OS / Raspbian:
+
+- Chromium: `chromium`
+- JPEG development package: `libjpeg62-turbo-dev`
+
+Ubuntu:
+
+- Chromium: `chromium-browser`
+- JPEG development package: `libjpeg-dev`
+
+Ubuntu package mapping has been implemented but has not yet been verified on a real Ubuntu installation.
+
+Chromium packaging on Ubuntu may involve Snap or transitional packages and must be tested before Ubuntu support is considered fully verified.
+
+### Portable Chromium Detection
+
+Linux requirement checks now recognize the following Chromium-based browser commands:
+
+- `chromium`
+- `chromium-browser`
+- `google-chrome`
+- `google-chrome-stable`
+
+This matches the browser-selection behavior already used by the Fordo appliance startup script.
+
+### systemd Service Validation
+
+The installer now includes a `service_is_active()` check using:
+
+`systemctl is-active --quiet fordo-ndi.service`
+
+During a future real installation, Fordo will require the systemd service to report active before continuing to application-level health validation.
+
+systemd installation failures caused by `subprocess.CalledProcessError` are now caught and returned as installer failures instead of terminating the installer unexpectedly.
+
+The active-state helper was verified against the running Fordo service and returned `True`.
+
+### Application-Level Health Validation
+
+A new health checker was added at:
+
+`install/checks/service_health.py`
+
+It checks:
+
+`http://127.0.0.1:8080/api/health`
+
+Fordo now considers the application healthy only when:
+
+- the endpoint is reachable
+- HTTP status is `200`
+- the response is valid JSON
+- the JSON response contains `"status": "ok"`
+
+The running Raspberry Pi appliance returned:
+
+- reachable: YES
+- status code: 200
+- healthy: YES
+- successful attempt: 1
+
+### Appliance Startup Script Permissions
+
+The installer now verifies that:
+
+`scripts/start-appliance.sh`
+
+exists and has at least one executable permission bit.
+
+During dry-run, Fordo reports the planned `chmod +x` operation if required.
+
+During real installation, the installer will make the script executable and verify that the permission update succeeded.
+
+The current Raspberry Pi script permissions were verified as:
+
+`775`
+
+### Check Mode and Dry-Run Separation
+
+Installer control flow was cleaned up so the modes have distinct responsibilities.
+
+`--dry-run` uses the ordered Linux installation pipeline and exits after that pipeline completes.
+
+Normal `--check` mode remains inspection-only and performs:
+
+- system requirement inspection
+- distribution/package inspection
+- NDI runtime inspection
+- native build state inspection
+- systemd service inspection
+- Fordo HTTP health check
+- labwc autostart inspection
+- Linux installation state inspection
+- Python requirements comparison
+- `pip check`
+- Raspberry Pi platform validation
+
+Obsolete and unreachable dry-run branches were removed from the check-mode path.
+
+Both modes were re-tested after this cleanup.
+
+Verified results:
+
+- `python3 install/install.py --dry-run` -> PASSED
+- `python3 install/install.py --check` -> PASSED
+- Fordo HTTP health -> PASSED
+- Python package dependency check -> PASSED
+- Raspberry Pi platform validation -> PASSED
+
+### Installation Safety Status
+
+`--install` remains intentionally disabled.
+
+The installer currently contains the real-install execution path, but the command-line safety gate still prevents it from making system changes.
+
+The safety message remains:
+
+`INSTALL MODE IS NOT ENABLED YET.`
+
+Real installation should not be enabled until the remaining fresh-install validation and disposable-system testing are complete.
