@@ -3,6 +3,8 @@
 import shutil
 import subprocess
 
+from platforms.privileges import privilege_prefix
+
 
 BASE_REQUIRED_PACKAGES = {
     "python3": "python3",
@@ -105,8 +107,23 @@ def install_missing_packages(
         print("No Debian package installation required.")
         return True
 
+    prefix = privilege_prefix()
+
+    if prefix is None:
+        print(
+            "Package installation requires root privileges, "
+            "but sudo is not available."
+        )
+        return False
+
+    update_command = [
+        *prefix,
+        "apt-get",
+        "update",
+    ]
+
     command = [
-        "sudo",
+        *prefix,
         "apt-get",
         "install",
         "-y",
@@ -116,7 +133,8 @@ def install_missing_packages(
     if dry_run:
         print()
         print("DRY RUN - no packages will be installed.")
-        print("Planned command:")
+        print("Planned commands:")
+        print(" ".join(update_command))
         print(" ".join(command))
         return True
 
@@ -125,7 +143,7 @@ def install_missing_packages(
 
     try:
         subprocess.run(
-            ["sudo", "apt-get", "update"],
+            update_command,
             check=True,
         )
         subprocess.run(

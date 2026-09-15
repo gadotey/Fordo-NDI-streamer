@@ -1415,3 +1415,76 @@ The safety message remains:
 `INSTALL MODE IS NOT ENABLED YET.`
 
 Real installation should not be enabled until the remaining fresh-install validation and disposable-system testing are complete.
+
+## Shared Privilege Handling Checkpoint
+
+Fordo now uses a shared privilege-handling layer for Linux installation operations.
+
+### Shared privilege module
+
+Added:
+
+`install/platforms/privileges.py`
+
+The privilege layer distinguishes between:
+
+- root execution, where privileged commands run directly without `sudo`
+- non-root execution with `sudo` available
+- non-root execution where privilege escalation is unavailable
+
+This prevents the installer from assuming that every Debian-family system has `sudo` installed or that Fordo will always be launched by a normal user.
+
+### Debian package installer
+
+`install/platforms/debian_packages.py` now uses the shared privilege module instead of hard-coded `sudo` commands.
+
+Verified on the Raspberry Pi:
+
+- normal user resolves `/usr/bin/sudo`
+- Debian package detection remains functional
+- all eight required package components were detected
+- full installer dry-run continues to pass
+
+### systemd installer
+
+`install/platforms/systemd_service.py` now uses the same shared privilege module for:
+
+- backing up an existing service
+- installing the generated service
+- `systemctl daemon-reload`
+- enabling the Fordo service
+- restarting the Fordo service
+
+The duplicate local `subprocess` import was also removed.
+
+### Privilege validation
+
+The following scenarios were verified without making privileged system changes:
+
+- normal user with sudo available
+- simulated root user
+- simulated non-root user without sudo
+
+The shared helper correctly returned:
+
+- `['/usr/bin/sudo']` for the current Raspberry Pi user
+- `[]` for simulated root
+- `None` when privilege escalation was unavailable
+
+### Regression validation
+
+After the privilege refactor:
+
+- complete Linux installer `--dry-run` passed
+- complete installer `--check` passed
+- Fordo service configuration matched
+- Fordo HTTP health endpoint returned HTTP 200 with healthy status
+- NDI ARM64 runtime validation passed
+- native preview validation passed
+- labwc autostart validation passed
+- Python requirements validation passed
+- Raspberry Pi platform validation passed
+- Python installer compilation passed
+- `git diff --check` passed
+
+Real `--install` mode remains intentionally disabled until fresh-machine prerequisite hardening and clean-system installation testing are complete.

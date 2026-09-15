@@ -4,6 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from platforms.privileges import privilege_prefix
+
 
 SERVICE_NAME = "fordo-ndi.service"
 SERVICE_PATH = Path("/etc/systemd/system") / SERVICE_NAME
@@ -102,9 +104,17 @@ def install_service(project_root, dry_run=True):
         print(f"  systemctl restart {SERVICE_NAME}")
         return True
 
-    import subprocess
     import tempfile
     from datetime import datetime
+
+    prefix = privilege_prefix()
+
+    if prefix is None:
+        print(
+            "systemd service installation requires root privileges, "
+            "but sudo is not available."
+        )
+        return False
 
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -125,24 +135,24 @@ def install_service(project_root, dry_run=True):
             print(f"Backing up existing systemd service to {backup_path}")
 
             subprocess.run(
-                ["sudo", "cp", str(SERVICE_PATH), str(backup_path)],
+                [*prefix, "cp", str(SERVICE_PATH), str(backup_path)],
                 check=True,
             )
 
         subprocess.run(
-            ["sudo", "cp", temp_path, str(SERVICE_PATH)],
+            [*prefix, "cp", temp_path, str(SERVICE_PATH)],
             check=True,
         )
         subprocess.run(
-            ["sudo", "systemctl", "daemon-reload"],
+            [*prefix, "systemctl", "daemon-reload"],
             check=True,
         )
         subprocess.run(
-            ["sudo", "systemctl", "enable", SERVICE_NAME],
+            [*prefix, "systemctl", "enable", SERVICE_NAME],
             check=True,
         )
         subprocess.run(
-            ["sudo", "systemctl", "restart", SERVICE_NAME],
+            [*prefix, "systemctl", "restart", SERVICE_NAME],
             check=True,
         )
 
