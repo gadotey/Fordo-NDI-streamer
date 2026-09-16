@@ -3,6 +3,8 @@
 import shutil
 from pathlib import Path
 
+from platforms.ndi_runtime import resolve_ndi_paths
+
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
@@ -24,6 +26,12 @@ def supported_browser_exists() -> bool:
 
 
 def check_linux_requirements() -> dict:
+    ndi_paths = resolve_ndi_paths()
+
+    ndi_library = ndi_paths["library"]
+    ndi_library_major = ndi_paths["library_major"]
+    ndi_header = ndi_paths["header"]
+
     return {
         "python3": command_exists("python3"),
         "pip3": command_exists("pip3"),
@@ -34,10 +42,15 @@ def check_linux_requirements() -> dict:
         "systemctl": command_exists("systemctl"),
         "libjpeg_header": file_exists("/usr/include/jpeglib.h"),
         "ndi_library": (
-            file_exists("/usr/local/lib/libndi.so")
-            or file_exists("/usr/local/lib/libndi.so.5")
+            (ndi_library is not None and ndi_library.exists())
+            or (
+                ndi_library_major is not None
+                and ndi_library_major.exists()
+            )
         ),
-        "ndi_header": file_exists("/usr/local/include/Processing.NDI.Lib.h"),
+        "ndi_header": (
+            ndi_header is not None and ndi_header.is_file()
+        ),
     }
 
 

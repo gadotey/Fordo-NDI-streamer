@@ -4,6 +4,8 @@ import time
 from dataclasses import dataclass, asdict
 from typing import List
 
+from app.ndi_runtime import ndi_library_name
+
 
 class NDISource(ctypes.Structure):
     _fields_ = [
@@ -35,7 +37,7 @@ class NDIDiscovery:
         self._finder = None
         self._ndi_initialized = False
 
-        self.ndi = ctypes.CDLL("libndi.so.5")
+        self.ndi = ctypes.CDLL(ndi_library_name())
 
         self.ndi.NDIlib_initialize.argtypes = []
         self.ndi.NDIlib_initialize.restype = ctypes.c_bool

@@ -4,15 +4,23 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from platforms.ndi_runtime import resolve_ndi_paths
 
-def get_paths(project_root: str) -> dict:
+
+def get_paths(
+    project_root: str,
+    ndi_prefix: Path | None = None,
+) -> dict:
     root = Path(project_root)
+    ndi_paths = resolve_ndi_paths(ndi_prefix)
 
     return {
         "source": root / "native" / "ndi_preview.cpp",
         "binary": root / "native" / "ndi_preview",
-        "ndi_header": Path("/usr/local/include/Processing.NDI.Lib.h"),
-        "ndi_library": Path("/usr/local/lib/libndi.so"),
+        "ndi_header": ndi_paths["header"],
+        "ndi_library": ndi_paths["library"],
+        "ndi_include_dir": ndi_paths["include_dir"],
+        "ndi_library_dir": ndi_paths["library_dir"],
         "jpeg_header": Path("/usr/include/jpeglib.h"),
     }
 
@@ -30,20 +38,30 @@ def inspect_native_build(project_root: str) -> dict:
     }
 
 
-def build_command(project_root: str, output_path: str | None = None) -> list[str]:
-    paths = get_paths(project_root)
+def build_command(
+    project_root: str,
+    output_path: str | None = None,
+    ndi_prefix: Path | None = None,
+) -> list[str]:
+    paths = get_paths(project_root, ndi_prefix=ndi_prefix)
     target = Path(output_path) if output_path else paths["binary"]
+
+    if paths["ndi_include_dir"] is None or paths["ndi_library_dir"] is None:
+        raise RuntimeError("NDI SDK/runtime paths could not be resolved.")
+
+    include_dir = str(paths["ndi_include_dir"])
+    library_dir = str(paths["ndi_library_dir"])
 
     return [
         "g++",
         "-O2",
         "-std=c++17",
         str(paths["source"]),
-        "-I/usr/local/include",
-        "-L/usr/local/lib",
+        f"-I{include_dir}",
+        f"-L{library_dir}",
         "-lndi",
         "-ljpeg",
-        "-Wl,-rpath,/usr/local/lib",
+        f"-Wl,-rpath,{library_dir}",
         "-o",
         str(target),
     ]

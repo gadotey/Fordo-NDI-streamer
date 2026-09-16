@@ -1597,3 +1597,25 @@ After prerequisite hardening:
 Production `--install` mode remains intentionally disabled.
 
 The next installation milestone is NDI runtime installation and path strategy, followed by removal of remaining hard-coded Linux assumptions and clean-system installation testing.
+
+## Milestone 17 - Dynamic NDI Runtime Strategy
+
+Fordo no longer assumes the NDI SDK/runtime is installed under `/usr/local`.
+
+Implemented and verified:
+
+- Dynamic NDI SDK/runtime prefix discovery.
+- Dynamic include, library, and NDI HX path resolution.
+- ELF architecture inspection and compatibility validation.
+- ARM64 runtime validation with ARM32/ARM64 compatibility logic.
+- Missing and incompatible runtime rejection.
+- Native preview compilation using resolved NDI paths.
+- Application-side dynamic NDI library resolution.
+- Dynamic `LD_LIBRARY_PATH` generation for NDI HX dependencies.
+- Preservation of an existing `LD_LIBRARY_PATH`.
+- Removal of hard-coded NDI `/usr/local` paths from application and installer Python code.
+- Successful temporary compilation of the native NDI preview.
+
+The Raspberry Pi 5 reference installation resolves the existing NDI runtime from `/usr/local`, but this location is now discovered rather than embedded in Fordo's NDI consumers.
+
+Fordo currently detects and validates an existing NDI SDK/runtime. Automatic NDI redistribution/installation is not enabled. Production `--install` remains intentionally disabled until the complete fresh-machine installation workflow has been verified.

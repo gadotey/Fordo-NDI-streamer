@@ -1,24 +1,94 @@
 from pathlib import Path
 
 
-NDI_HEADER = Path("/usr/local/include/Processing.NDI.Lib.h")
-NDI_CPP_HEADER = Path("/usr/local/include/Processing.NDI.Lib.cplusplus.h")
-NDI_LIBRARY = Path("/usr/local/lib/libndi.so")
-NDI_LIBRARY_MAJOR = Path("/usr/local/lib/libndi.so.5")
+NDI_PREFIX_CANDIDATES = (
+    Path("/usr/local"),
+    Path("/usr"),
+)
 
 
-def inspect_library_architecture() -> dict:
+def discover_ndi_prefix() -> Path | None:
+    """Return the first Linux prefix containing a usable NDI SDK/runtime."""
+    for prefix in NDI_PREFIX_CANDIDATES:
+        header = prefix / "include" / "Processing.NDI.Lib.h"
+        library = prefix / "lib" / "libndi.so"
+
+        if header.is_file() and library.exists():
+            return prefix
+
+    return None
+
+
+def resolve_ndi_paths(prefix: Path | None = None) -> dict:
+    """Return the NDI SDK/runtime paths associated with a prefix."""
+    if prefix is None:
+        prefix = discover_ndi_prefix()
+
+    if prefix is None:
+        return {
+            "prefix": None,
+            "include_dir": None,
+            "header": None,
+            "cpp_header": None,
+            "library_dir": None,
+            "library": None,
+            "library_major": None,
+            "hx_dir": None,
+        }
+
+    prefix = Path(prefix).resolve()
+    include_dir = prefix / "include"
+    library_dir = prefix / "lib"
+
+    return {
+        "prefix": prefix,
+        "include_dir": include_dir,
+        "header": include_dir / "Processing.NDI.Lib.h",
+        "cpp_header": include_dir / "Processing.NDI.Lib.cplusplus.h",
+        "library_dir": library_dir,
+        "library": library_dir / "libndi.so",
+        "library_major": library_dir / "libndi.so.5",
+        "hx_dir": library_dir / "ndi_hx",
+    }
+
+
+def build_ndi_library_path(prefix: Path | None = None) -> str | None:
+    """Return the runtime library search path for the discovered NDI runtime."""
+    paths = resolve_ndi_paths(prefix)
+
+    library_dir = paths["library_dir"]
+    hx_dir = paths["hx_dir"]
+
+    if library_dir is None:
+        return None
+
+    search_paths = []
+
+    if hx_dir is not None and hx_dir.is_dir():
+        search_paths.append(str(hx_dir))
+
+    if library_dir.is_dir():
+        search_paths.append(str(library_dir))
+
+    return ":".join(search_paths) if search_paths else None
+
+
+def inspect_library_architecture(library_path: Path | None = None) -> dict:
     result = {
         "bits": None,
         "architecture": None,
         "description": None,
     }
 
-    if not NDI_LIBRARY.exists():
+    if library_path is None:
+        paths = resolve_ndi_paths()
+        library_path = paths["library"]
+
+    if library_path is None or not library_path.exists():
         return result
 
     try:
-        library_path = NDI_LIBRARY.resolve()
+        library_path = Path(library_path).resolve()
         header = library_path.read_bytes()[:20]
     except OSError:
         return result
@@ -62,16 +132,27 @@ def inspect_library_architecture() -> dict:
     return result
 
 
-def inspect_ndi_runtime(machine_architecture: str | None = None) -> dict:
+def inspect_ndi_runtime(
+    machine_architecture: str | None = None,
+    prefix: Path | None = None,
+) -> dict:
+    paths = resolve_ndi_paths(prefix)
+
+    header = paths["header"]
+    cpp_header = paths["cpp_header"]
+    library = paths["library"]
+    library_major = paths["library_major"]
+    hx_dir = paths["hx_dir"]
+
     library_target = None
 
-    if NDI_LIBRARY.exists():
+    if library is not None and library.exists():
         try:
-            library_target = str(NDI_LIBRARY.resolve())
+            library_target = str(library.resolve())
         except OSError:
             library_target = None
 
-    library_arch = inspect_library_architecture()
+    library_arch = inspect_library_architecture(library)
 
     architecture_compatible = None
 
@@ -80,9 +161,19 @@ def inspect_ndi_runtime(machine_architecture: str | None = None) -> dict:
             machine_architecture == library_arch["architecture"]
         )
 
+    header_present = header is not None and header.is_file()
+    cpp_header_present = (
+        cpp_header is not None and cpp_header.is_file()
+    )
+    library_present = library is not None and library.exists()
+    library_major_present = (
+        library_major is not None and library_major.exists()
+    )
+    hx_dir_present = hx_dir is not None and hx_dir.is_dir()
+
     runtime_ready = (
-        NDI_HEADER.is_file()
-        and NDI_LIBRARY.exists()
+        header_present
+        and library_present
         and (
             architecture_compatible is True
             if machine_architecture
@@ -91,10 +182,23 @@ def inspect_ndi_runtime(machine_architecture: str | None = None) -> dict:
     )
 
     return {
-        "header": NDI_HEADER.is_file(),
-        "cpp_header": NDI_CPP_HEADER.is_file(),
-        "library": NDI_LIBRARY.exists(),
-        "library_major": NDI_LIBRARY_MAJOR.exists(),
+        "prefix": str(paths["prefix"]) if paths["prefix"] else None,
+        "include_dir": (
+            str(paths["include_dir"])
+            if paths["include_dir"]
+            else None
+        ),
+        "library_dir": (
+            str(paths["library_dir"])
+            if paths["library_dir"]
+            else None
+        ),
+        "hx_dir": str(hx_dir) if hx_dir else None,
+        "hx_dir_present": hx_dir_present,
+        "header": header_present,
+        "cpp_header": cpp_header_present,
+        "library": library_present,
+        "library_major": library_major_present,
         "library_target": library_target,
         "library_bits": library_arch["bits"],
         "library_architecture": library_arch["architecture"],

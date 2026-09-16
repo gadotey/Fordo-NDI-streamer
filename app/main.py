@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.ndi_discovery import discovery
+from app.ndi_runtime import ndi_library_path
 from app.system_metrics import get_system_metrics
 
 
@@ -69,7 +70,11 @@ async def preview(source: str):
         stderr=asyncio.subprocess.DEVNULL,
         env={
             **os.environ,
-            "LD_LIBRARY_PATH": "/usr/local/lib/ndi_hx:/usr/local/lib",
+            **(
+                {"LD_LIBRARY_PATH": ndi_library_path()}
+                if ndi_library_path()
+                else {}
+            ),
         },
     )
 
