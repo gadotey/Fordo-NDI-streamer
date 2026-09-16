@@ -1648,3 +1648,35 @@ Post-migration validation confirmed:
 - generated and installed systemd configurations match
 - native preview compilation remains functional
 - installer platform validation remains successful
+
+## Milestone 19 - Installer Failure-Path Testing
+
+Fordo now includes automated installer failure-path regression tests using Python's built-in unittest framework.
+
+The tests validate safe behavior for:
+
+- ARM64 and ARM32 architecture normalization
+- unsupported architecture handling
+- missing project structure
+- missing Python virtual environment
+- missing requirements file
+- missing NDI runtime
+- invalid/non-ELF NDI libraries
+- incompatible ARM32 NDI runtime on an ARM64 system
+- missing systemctl
+- missing apt/dpkg package-management tools
+- package installation when apt is unavailable
+- missing native compiler
+- missing JPEG development headers
+- native preview compiler failure
+- unreachable Fordo HTTP health endpoint
+- missing labwc autostart configuration
+- production --install safety guard
+
+Failure simulations use temporary directories and mocks where appropriate and do not intentionally remove packages, modify the installed NDI runtime, disable systemd, or damage the running appliance.
+
+The complete failure-path suite contains 20 automated tests.
+
+Post-test regression validation confirmed that the live Fordo service remained active and its HTTP health endpoint remained available.
+
+Production --install mode remains intentionally disabled until the clean-install workflow has been validated.
