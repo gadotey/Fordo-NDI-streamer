@@ -35,12 +35,32 @@ def required_packages_for_distribution(distro_info: dict | None = None) -> dict:
     return packages
 
 
+def dpkg_query_available() -> bool:
+    return shutil.which("dpkg-query") is not None
+
+
+def apt_available() -> bool:
+    return shutil.which("apt-get") is not None
+
+
+def package_tools_available() -> bool:
+    """Return True when Debian package inspection and installation tools exist."""
+    return dpkg_query_available() and apt_available()
+
+
 def package_is_installed(package: str) -> bool:
-    result = subprocess.run(
-        ["dpkg-query", "-W", "-f=${Status}", package],
-        capture_output=True,
-        text=True,
-    )
+    if not dpkg_query_available():
+        return False
+
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "-W", "-f=${Status}", package],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
 
     return (
         result.returncode == 0
@@ -107,6 +127,13 @@ def install_missing_packages(
         print("No Debian package installation required.")
         return True
 
+    if not apt_available():
+        print(
+            "Package installation cannot continue because "
+            "apt-get was not found."
+        )
+        return False
+
     prefix = privilege_prefix()
 
     if prefix is None:
@@ -165,10 +192,6 @@ def install_missing_packages(
 
     print("Required Debian packages installed successfully.")
     return True
-
-
-def apt_available() -> bool:
-    return shutil.which("apt-get") is not None
 
 
 if __name__ == "__main__":

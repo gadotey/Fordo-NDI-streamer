@@ -1488,3 +1488,112 @@ After the privilege refactor:
 - `git diff --check` passed
 
 Real `--install` mode remains intentionally disabled until fresh-machine prerequisite hardening and clean-system installation testing are complete.
+
+## Fresh-Machine Prerequisite Hardening Checkpoint
+
+Fordo's Linux installer now performs additional prerequisite validation before attempting installation operations. This work is intended to make failures on a fresh or incomplete system predictable, understandable, and safe.
+
+### Python compatibility
+
+The installer now requires Python 3.10 or newer.
+
+The compatibility check runs before Fordo-specific installer modules are imported so that an unsupported Python interpreter receives a clear error instead of failing on newer Python syntax.
+
+Verified scenarios:
+
+- Raspberry Pi Python 3.13.5 passes
+- simulated Python 3.9.18 exits cleanly with an unsupported-version message
+
+### Project structure validation
+
+Added:
+
+`install/checks/project_structure.py`
+
+Before installation begins, Fordo now verifies that the project checkout contains the critical source files and directories required to build and deploy the application.
+
+Validated items include:
+
+- `requirements.txt`
+- `app/main.py`
+- `app/ndi_discovery.py`
+- `native/ndi_preview.cpp`
+- `scripts/start-appliance.sh`
+- `app/static/`
+
+Generated artifacts such as `.venv` and the compiled native preview binary are intentionally not required.
+
+An incomplete checkout now stops installation before package inspection or system modification.
+
+### Debian package-management prerequisites
+
+`install/platforms/debian_packages.py` now explicitly distinguishes between:
+
+- `dpkg-query`, used to inspect installed packages
+- `apt-get`, used to install missing packages
+
+The installer verifies that both tools are available before entering the Debian package installation stage.
+
+Package inspection also handles execution failures safely instead of assuming `dpkg-query` can always be executed.
+
+Verified failure scenarios:
+
+- missing `dpkg-query` stops installation before package inspection
+- missing `apt-get` stops installation before package installation
+- diagnostic mode reports package state as unavailable when `dpkg-query` is missing
+- diagnostic mode can still inspect packages when `apt-get` is missing and reports that automatic package installation is unavailable
+
+### systemd prerequisite validation
+
+`install/platforms/systemd_service.py` now explicitly verifies that `systemctl` is available.
+
+If `systemctl` is unavailable:
+
+- service-active inspection returns safely
+- service installation stops with a clear diagnostic message
+- no systemd command is attempted
+
+### Linux installer cleanup
+
+Obsolete Debian package mappings and duplicate `apt-get` detection were removed from:
+
+`install/platforms/linux.py`
+
+Debian package-management responsibilities are now centralized in:
+
+`install/platforms/debian_packages.py`
+
+### Fresh-machine failure simulations
+
+The following prerequisite failure paths were explicitly tested:
+
+- unsupported Python version
+- incomplete Fordo project checkout
+- missing `systemctl`
+- missing `dpkg-query` during installation
+- missing `apt-get` during installation
+- missing `dpkg-query` during diagnostic checks
+- missing `apt-get` during diagnostic checks
+
+Each tested failure path stopped or degraded safely without proceeding into an invalid installation stage.
+
+### Regression validation
+
+After prerequisite hardening:
+
+- complete Linux installer `--dry-run` passed
+- complete installer `--check` passed
+- Debian package state validation passed
+- NDI ARM64 runtime validation passed
+- native preview validation passed
+- Fordo systemd service configuration matched
+- Fordo HTTP health endpoint returned HTTP 200 with healthy status
+- labwc autostart validation passed
+- Python requirements validation passed
+- Raspberry Pi platform validation passed
+- the complete `install/` Python tree compiled successfully
+- `git diff --check` passed
+
+Production `--install` mode remains intentionally disabled.
+
+The next installation milestone is NDI runtime installation and path strategy, followed by removal of remaining hard-coded Linux assumptions and clean-system installation testing.

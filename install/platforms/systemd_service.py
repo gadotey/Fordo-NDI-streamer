@@ -1,6 +1,7 @@
 import getpass
 import grp
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,11 @@ from platforms.privileges import privilege_prefix
 
 SERVICE_NAME = "fordo-ndi.service"
 SERVICE_PATH = Path("/etc/systemd/system") / SERVICE_NAME
+
+
+def systemctl_available() -> bool:
+    """Return True when systemctl is available on this system."""
+    return shutil.which("systemctl") is not None
 
 
 def get_service_user():
@@ -74,6 +80,9 @@ def print_service_state(state):
 
 
 def service_is_active() -> bool:
+    if not systemctl_available():
+        return False
+
     try:
         result = subprocess.run(
             ["systemctl", "is-active", "--quiet", SERVICE_NAME],
@@ -86,6 +95,13 @@ def service_is_active() -> bool:
 
 
 def install_service(project_root, dry_run=True):
+    if not systemctl_available():
+        print(
+            "systemd service installation cannot continue because "
+            "systemctl was not found."
+        )
+        return False
+
     expected = render_service(project_root)
     state = inspect_service(project_root)
 

@@ -4,13 +4,39 @@ import argparse
 import getpass
 import os
 import platform
+import sys
 from pathlib import Path
+
+
+MINIMUM_PYTHON = (3, 10)
+
+
+def require_supported_python() -> None:
+    if sys.version_info < MINIMUM_PYTHON:
+        required = ".".join(map(str, MINIMUM_PYTHON))
+        detected = platform.python_version()
+        print(
+            f"Fordo requires Python {required} or newer. "
+            f"Detected Python {detected}."
+        )
+        raise SystemExit(1)
+
+
+require_supported_python()
+
 
 from checks.system_requirements import check_linux_requirements, print_check_results
 from platforms.raspberry_pi import validate_raspberry_pi, print_validation, validation_passed
 from platforms.linux import inspect_linux_installation, print_linux_installation_state
 from checks.python_requirements_check import compare_requirements, print_comparison
-from platforms.debian_packages import detect_package_state, print_package_state, install_missing_packages
+from platforms.debian_packages import (
+    detect_package_state,
+    print_package_state,
+    install_missing_packages,
+    dpkg_query_available,
+    apt_available,
+    package_tools_available,
+)
 from platforms.linux_distribution import detect_linux_distribution, print_linux_distribution
 from platforms.ndi_runtime import inspect_ndi_runtime, print_ndi_runtime_state
 from platforms.native_preview import inspect_native_build, print_native_build_state, build_native_preview
@@ -20,6 +46,7 @@ from platforms.python_environment import venv_is_valid, create_virtual_environme
 from platforms.python_requirements import verify_requirements, install_requirements
 from platforms.architecture import detect_architecture
 from checks.service_health import wait_for_health, print_health_result
+from checks.project_structure import inspect_project_structure, print_project_structure
 
 
 def is_raspberry_pi() -> bool:
@@ -142,7 +169,39 @@ def ensure_appliance_script_executable(project_root: str, dry_run: bool = True) 
 def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True) -> bool:
     project_root = environment["project_root"]
 
+    project_state = inspect_project_structure(project_root)
+    print_project_structure(project_state)
+
+    if not project_state["valid"]:
+        print(
+            "Installation stopped: Fordo project checkout is incomplete "
+            "or missing required files."
+        )
+        return False
+
     if distro_info["is_debian_family"]:
+        if not package_tools_available():
+            print()
+            print("Debian package prerequisites are not available.")
+
+            if not dpkg_query_available():
+                print(
+                    "  - dpkg-query was not found; Fordo cannot "
+                    "reliably inspect installed packages."
+                )
+
+            if not apt_available():
+                print(
+                    "  - apt-get was not found; Fordo cannot "
+                    "install missing system packages."
+                )
+
+            print(
+                "Installation stopped: Debian package management "
+                "prerequisites are incomplete."
+            )
+            return False
+
         package_state = detect_package_state(distro_info)
         print_package_state(package_state)
 
@@ -248,8 +307,26 @@ def main() -> None:
             raise SystemExit(0 if success else 1)
 
         if distro_info["is_debian_family"]:
-            package_state = detect_package_state(distro_info)
-            print_package_state(package_state)
+            if dpkg_query_available():
+                package_state = detect_package_state(distro_info)
+                print_package_state(package_state)
+
+                if not apt_available():
+                    print()
+                    print(
+                        "WARNING: apt-get was not found. Package state can be "
+                        "inspected, but Fordo cannot automatically install "
+                        "missing system packages."
+                    )
+            else:
+                print()
+                print("Debian Package State")
+                print("=" * 55)
+                print(
+                    "UNAVAILABLE - dpkg-query was not found, so Fordo "
+                    "cannot reliably inspect installed packages."
+                )
+                print("=" * 55)
         else:
             print()
             print("Debian package checks skipped for this Linux distribution.")

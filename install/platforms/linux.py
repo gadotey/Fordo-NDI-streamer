@@ -1,22 +1,8 @@
 #!/usr/bin/env python3
 
-import shutil
 from pathlib import Path
 
-
-APT_PACKAGES = {
-    "python3": "python3",
-    "pip3": "python3-pip",
-    "g++": "g++",
-    "git": "git",
-    "curl": "curl",
-    "chromium": "chromium",
-    "libjpeg_header": "libjpeg-dev",
-}
-
-
-def apt_available() -> bool:
-    return shutil.which("apt-get") is not None
+from platforms.debian_packages import apt_available
 
 
 def virtual_environment_exists(project_root: str) -> bool:
