@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from platforms.jpeg import find_jpeg_header
 from platforms.ndi_runtime import resolve_ndi_paths
 
 
@@ -21,7 +22,7 @@ def get_paths(
         "ndi_library": ndi_paths["library"],
         "ndi_include_dir": ndi_paths["include_dir"],
         "ndi_library_dir": ndi_paths["library_dir"],
-        "jpeg_header": Path("/usr/include/jpeglib.h"),
+        "jpeg_header": find_jpeg_header(),
     }
 
 
@@ -33,7 +34,10 @@ def inspect_native_build(project_root: str) -> dict:
         "source": paths["source"].is_file(),
         "ndi_header": paths["ndi_header"].is_file(),
         "ndi_library": paths["ndi_library"].exists(),
-        "jpeg_header": paths["jpeg_header"].is_file(),
+        "jpeg_header": (
+            paths["jpeg_header"] is not None
+            and paths["jpeg_header"].is_file()
+        ),
         "binary": paths["binary"].is_file(),
     }
 

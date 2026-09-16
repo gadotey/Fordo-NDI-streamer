@@ -1619,3 +1619,32 @@ Implemented and verified:
 The Raspberry Pi 5 reference installation resolves the existing NDI runtime from `/usr/local`, but this location is now discovered rather than embedded in Fordo's NDI consumers.
 
 Fordo currently detects and validates an existing NDI SDK/runtime. Automatic NDI redistribution/installation is not enabled. Production `--install` remains intentionally disabled until the complete fresh-machine installation workflow has been verified.
+
+## Milestone 18 - Linux Assumption Hardening
+
+Fordo's Linux deployment code was audited for machine-specific and unnecessarily hard-coded Linux assumptions.
+
+Changes include:
+
+- systemd service NDI library paths are generated dynamically from the NDI runtime resolver
+- the NDI HX directory is included when available
+- JPEG development headers are discovered through a Linux JPEG resolver instead of being embedded in installer consumers
+- native preview build checks use the JPEG resolver
+- system requirement checks use the JPEG resolver
+- machine-specific user home paths are not embedded in application or installer code
+- Debian package management remains isolated in the Debian platform module
+- systemd behavior remains isolated in the Linux systemd module
+- labwc autostart behavior remains isolated as Raspberry Pi/labwc-specific functionality
+- Linux NDI shared-library names remain intentionally isolated in Linux runtime resolution
+
+The installed Raspberry Pi systemd service was regenerated using the dynamic NDI runtime path and successfully restarted.
+
+Post-migration validation confirmed:
+
+- Fordo systemd service active and enabled
+- application startup successful
+- HTTP health endpoint available
+- NDI discovery API available
+- generated and installed systemd configurations match
+- native preview compilation remains functional
+- installer platform validation remains successful

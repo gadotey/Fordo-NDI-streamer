@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from platforms.ndi_runtime import build_ndi_library_path
+
 from platforms.privileges import privilege_prefix
 
 
@@ -27,6 +29,12 @@ def get_service_group():
 
 
 def render_service(project_root):
+    ndi_library_path = build_ndi_library_path()
+    if not ndi_library_path:
+        raise RuntimeError(
+            "Unable to resolve NDI runtime library path."
+        )
+
     project_root = Path(project_root).resolve()
     user = get_service_user()
     group = get_service_group()
@@ -44,7 +52,7 @@ Group={group}
 WorkingDirectory={project_root}
 
 Environment="PYTHONUNBUFFERED=1"
-Environment="LD_LIBRARY_PATH=/usr/local/lib"
+Environment="LD_LIBRARY_PATH={ndi_library_path}"
 
 ExecStart={uvicorn_path} app.main:app --host 0.0.0.0 --port 8080
 

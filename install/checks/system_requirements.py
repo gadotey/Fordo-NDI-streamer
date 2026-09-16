@@ -3,6 +3,7 @@
 import shutil
 from pathlib import Path
 
+from platforms.jpeg import find_jpeg_header
 from platforms.ndi_runtime import resolve_ndi_paths
 
 
@@ -40,7 +41,7 @@ def check_linux_requirements() -> dict:
         "curl": command_exists("curl"),
         "chromium_browser": supported_browser_exists(),
         "systemctl": command_exists("systemctl"),
-        "libjpeg_header": file_exists("/usr/include/jpeglib.h"),
+        "libjpeg_header": find_jpeg_header() is not None,
         "ndi_library": (
             (ndi_library is not None and ndi_library.exists())
             or (
