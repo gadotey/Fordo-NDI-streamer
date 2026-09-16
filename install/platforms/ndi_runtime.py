@@ -208,6 +208,94 @@ def inspect_ndi_runtime(
     }
 
 
+
+NDI_SDK_DOWNLOAD_URL = "https://ndi.video/for-developers/ndi-sdk/download/"
+
+
+def ndi_runtime_problem(
+    state: dict,
+    machine_architecture: str | None = None,
+) -> str | None:
+    """Return a concise reason why the NDI runtime is not ready."""
+    if state["runtime_ready"]:
+        return None
+
+    if not state["header"] and not state["library"]:
+        return "NDI SDK/runtime was not found."
+
+    if not state["header"]:
+        return "NDI development header was not found."
+
+    if not state["library"]:
+        return "NDI shared library was not found."
+
+    if state["architecture_compatible"] is False:
+        detected = state["library_architecture"] or "unknown"
+        expected = machine_architecture or "unknown"
+        return (
+            "NDI runtime architecture is incompatible "
+            f"(detected {detected}, expected {expected})."
+        )
+
+    if (
+        machine_architecture
+        and state["library_architecture"] is None
+    ):
+        return "NDI runtime architecture could not be determined."
+
+    return "NDI SDK/runtime is incomplete or incompatible."
+
+
+def print_ndi_installation_guidance(
+    state: dict,
+    machine_architecture: str | None = None,
+) -> None:
+    """Print safe guidance when Fordo cannot use the NDI runtime."""
+    problem = ndi_runtime_problem(
+        state,
+        machine_architecture=machine_architecture,
+    )
+
+    if problem is None:
+        return
+
+    architecture = machine_architecture or "unknown"
+
+    print()
+    print("NDI Runtime Requirement")
+    print("=" * 60)
+    print(f"Status: {problem}")
+    print(f"Machine architecture: {architecture}")
+    print()
+    print(
+        "Fordo requires the official NDI SDK/runtime and development "
+        "files to receive NDI video."
+    )
+    print()
+    print(
+        "Fordo does not bundle or redistribute the NDI SDK/runtime."
+    )
+    print(
+        "Obtain a compatible NDI SDK/runtime from the official "
+        "NDI developer download page:"
+    )
+    print()
+    print(f"  {NDI_SDK_DOWNLOAD_URL}")
+    print()
+    print(
+        "After installing NDI for this machine architecture, "
+        "rerun:"
+    )
+    print()
+    print("  python3 install/install.py --dry-run")
+    print()
+    print(
+        "Fordo will automatically rediscover and validate the "
+        "runtime before continuing."
+    )
+    print("=" * 60)
+
+
 def print_ndi_runtime_state(state: dict) -> None:
     print()
     print("NDI Runtime State")

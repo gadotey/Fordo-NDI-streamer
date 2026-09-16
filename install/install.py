@@ -38,7 +38,11 @@ from platforms.debian_packages import (
     package_tools_available,
 )
 from platforms.linux_distribution import detect_linux_distribution, print_linux_distribution
-from platforms.ndi_runtime import inspect_ndi_runtime, print_ndi_runtime_state
+from platforms.ndi_runtime import (
+    inspect_ndi_runtime,
+    print_ndi_runtime_state,
+    print_ndi_installation_guidance,
+)
 from platforms.native_preview import inspect_native_build, print_native_build_state, build_native_preview
 from platforms.systemd_service import inspect_service, print_service_state, install_service, service_is_active
 from platforms.labwc_autostart import inspect_autostart, print_autostart_state, configure_autostart
@@ -229,6 +233,10 @@ def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True
     print_ndi_runtime_state(ndi_state)
 
     if not ndi_state["runtime_ready"]:
+        print_ndi_installation_guidance(
+            ndi_state,
+            machine_architecture=environment["architecture_class"],
+        )
         print("Installation stopped: compatible NDI runtime was not found.")
         return False
 

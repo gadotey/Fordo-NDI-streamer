@@ -1680,3 +1680,64 @@ The complete failure-path suite contains 20 automated tests.
 Post-test regression validation confirmed that the live Fordo service remained active and its HTTP health endpoint remained available.
 
 Production --install mode remains intentionally disabled until the clean-install workflow has been validated.
+
+## Milestone 20 - Clean Installation Validation
+
+Fordo's clean-install workflow was tested in an isolated project directory without disturbing the production appliance.
+
+### NDI prerequisite handling
+
+Fordo now provides explicit installation guidance when a compatible NDI SDK/runtime is missing or incompatible.
+
+The installer:
+
+- detects a missing NDI SDK/runtime;
+- detects missing NDI headers or libraries;
+- detects incompatible NDI architectures;
+- identifies the machine architecture;
+- directs the user to the official NDI SDK download page;
+- explains that Fordo does not bundle or redistribute the NDI SDK/runtime;
+- instructs the user to rerun the Fordo installer after installing NDI.
+
+The NDI runtime remains an external prerequisite.
+
+### Automated validation
+
+Eight NDI prerequisite/guidance tests were added.
+
+The complete installer regression suite now contains 28 tests and passes successfully.
+
+### Clean-room reconstruction
+
+A clean project copy was created under `/tmp/fordo-clean-room`.
+
+The clean copy intentionally started without:
+
+- `.venv`
+- `native/ndi_preview`
+
+The following operations were then successfully performed from scratch:
+
+1. Project structure validation.
+2. Python virtual environment creation.
+3. Installation of all pinned Python requirements.
+4. ARM64 NDI SDK/runtime validation.
+5. Native NDI preview receiver compilation.
+6. Complete 28-test installer regression suite.
+
+The clean-room reconstruction completed successfully.
+
+The production Fordo appliance remained active and healthy throughout the test.
+
+### Remaining fresh-machine validation
+
+This clean-room test validates Fordo's project-local reconstruction but is not equivalent to a completely fresh Raspberry Pi OS installation because the host already contains:
+
+- Debian system prerequisites;
+- the NDI SDK/runtime;
+- systemd;
+- the labwc desktop environment.
+
+A final Milestone 20 validation must therefore be performed on a fresh Raspberry Pi OS installation or equivalent disposable system before production `--install` mode is enabled.
+
+Production `--install` remains intentionally disabled.
