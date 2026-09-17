@@ -6,7 +6,7 @@ import socket
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from app.ndi_discovery import discovery
 from app.ndi_runtime import ndi_library_path
@@ -59,6 +59,76 @@ async def system():
     metrics["ndi_source_count"] = len(discovery.get_sources())
     metrics["discovery_running"] = discovery._running
     return metrics
+
+
+@app.get("/api/thumbnail")
+async def thumbnail(source: str):
+    process = None
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "./native/ndi_preview",
+            source,
+            "--single-frame",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={
+                **os.environ,
+                **(
+                    {"LD_LIBRARY_PATH": ndi_library_path()}
+                    if ndi_library_path()
+                    else {}
+                ),
+            },
+        )
+
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=20,
+        )
+
+        if (
+            process.returncode != 0
+            or not stdout
+            or not stdout.startswith(bytes([0xFF, 0xD8]))
+            or not stdout.endswith(bytes([0xFF, 0xD9]))
+        ):
+            detail = stderr.decode(
+                "utf-8",
+                errors="replace",
+            ).strip()
+
+            print(
+                "Thumbnail capture failed "
+                f"for {source!r}: "
+                f"returncode={process.returncode}, "
+                f"bytes={len(stdout)}, "
+                f"stderr={detail}",
+                flush=True,
+            )
+
+            return Response(status_code=503)
+
+        return Response(
+            content=stdout,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control":
+                    "no-store, no-cache, must-revalidate",
+            },
+        )
+
+    except asyncio.TimeoutError:
+        if process is not None and process.returncode is None:
+            process.kill()
+            await process.wait()
+
+        print(
+            f"Thumbnail capture timed out for {source!r}",
+            flush=True,
+        )
+
+        return Response(status_code=503)
 
 
 @app.get("/api/preview")

@@ -86,6 +86,9 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string requested_name = argv[1];
+    const bool single_frame =
+        argc >= 3 &&
+        std::string(argv[2]) == "--single-frame";
 
     if (!NDIlib_initialize()) {
         std::cerr << "NDI initialization failed.\n";
@@ -245,6 +248,27 @@ int main(int argc, char* argv[]) {
                 << "\n";
 
             if (encode_jpeg(video, jpeg)) {
+
+                if (single_frame) {
+                    std::cout.write(
+                        reinterpret_cast<const char*>(
+                            jpeg.data()
+                        ),
+                        jpeg.size()
+                    );
+                    std::cout.flush();
+
+                    NDIlib_recv_free_video_v2(
+                        receiver,
+                        &video
+                    );
+
+                    NDIlib_recv_destroy(receiver);
+                    NDIlib_find_destroy(finder);
+                    NDIlib_destroy();
+
+                    return 0;
+                }
 
                 std::cout
                     << "--frame\r\n"

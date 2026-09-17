@@ -70,13 +70,19 @@ def inspect_service(project_root):
     except RuntimeError:
         expected = None
 
+    service_exists = SERVICE_PATH.is_file()
+    service_matches = False
+
+    if service_exists and expected is not None:
+        try:
+            service_matches = SERVICE_PATH.read_text() == expected
+        except OSError:
+            service_matches = False
+
     return {
         "service_path": str(SERVICE_PATH),
-        "service_exists": SERVICE_PATH.is_file(),
-        "service_matches": (
-            SERVICE_PATH.is_file()
-            and SERVICE_PATH.read_text() == expected
-        ),
+        "service_exists": service_exists,
+        "service_matches": service_matches,
     }
 
 
@@ -167,7 +173,18 @@ def install_service(project_root, dry_run=True):
             )
 
         subprocess.run(
-            [*prefix, "cp", temp_path, str(SERVICE_PATH)],
+            [
+                *prefix,
+                "install",
+                "-o",
+                "root",
+                "-g",
+                "root",
+                "-m",
+                "0644",
+                temp_path,
+                str(SERVICE_PATH),
+            ],
             check=True,
         )
         subprocess.run(
