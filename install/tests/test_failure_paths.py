@@ -113,13 +113,13 @@ class TestSystemFailurePaths(unittest.TestCase):
         self.assertFalse(result["healthy"])
 
 
-class TestInstallerSafetyGuard(unittest.TestCase):
+class TestInstallerProductionMode(unittest.TestCase):
 
-    def test_install_mode_remains_disabled(self):
+    def test_install_mode_is_exposed_in_help(self):
         command = [
             sys.executable,
             "install/install.py",
-            "--install",
+            "--help",
         ]
 
         result = subprocess.run(
@@ -132,7 +132,12 @@ class TestInstallerSafetyGuard(unittest.TestCase):
         combined = result.stdout + result.stderr
 
         self.assertEqual(result.returncode, 0)
+        self.assertIn("--install", combined)
         self.assertIn(
+            "Install Fordo and configure supported system services.",
+            combined,
+        )
+        self.assertNotIn(
             "INSTALL MODE IS NOT ENABLED YET",
             combined,
         )

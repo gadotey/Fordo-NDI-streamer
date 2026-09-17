@@ -134,7 +134,7 @@ def parse_arguments():
     mode.add_argument(
         "--install",
         action="store_true",
-        help="Perform installation actions when full install mode is enabled.",
+        help="Install Fordo and configure supported system services.",
     )
 
     return parser.parse_args()
@@ -286,18 +286,16 @@ def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True
 def main() -> None:
     args = parse_arguments()
 
-    if args.install:
-        print(
-            "INSTALL MODE IS NOT ENABLED YET. "
-            "Fordo will not make system changes until all installation stages "
-            "have been implemented and verified."
-        )
-        return
-
-    dry_run = args.dry_run
-
     environment = detect_environment()
     print_environment(environment)
+
+    if args.install and environment["operating_system"] != "Linux":
+        print()
+        print(
+            "Installation stopped: production install mode currently "
+            "supports Linux only."
+        )
+        raise SystemExit(1)
 
     if environment["operating_system"] == "Linux":
         results = check_linux_requirements()
@@ -306,11 +304,11 @@ def main() -> None:
         distro_info = detect_linux_distribution()
         print_linux_distribution(distro_info)
 
-        if dry_run:
+        if args.dry_run or args.install:
             success = run_linux_install(
                 environment,
                 distro_info,
-                dry_run=True,
+                dry_run=not args.install,
             )
             raise SystemExit(0 if success else 1)
 
