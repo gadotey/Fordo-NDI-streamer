@@ -65,7 +65,10 @@ WantedBy=multi-user.target
 
 
 def inspect_service(project_root):
-    expected = render_service(project_root)
+    try:
+        expected = render_service(project_root)
+    except RuntimeError:
+        expected = None
 
     return {
         "service_path": str(SERVICE_PATH),

@@ -32,8 +32,14 @@ def inspect_native_build(project_root: str) -> dict:
     return {
         "compiler": shutil.which("g++") is not None,
         "source": paths["source"].is_file(),
-        "ndi_header": paths["ndi_header"].is_file(),
-        "ndi_library": paths["ndi_library"].exists(),
+        "ndi_header": (
+            paths["ndi_header"] is not None
+            and paths["ndi_header"].is_file()
+        ),
+        "ndi_library": (
+            paths["ndi_library"] is not None
+            and paths["ndi_library"].exists()
+        ),
         "jpeg_header": (
             paths["jpeg_header"] is not None
             and paths["jpeg_header"].is_file()

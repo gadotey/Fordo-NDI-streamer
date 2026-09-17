@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -188,6 +189,35 @@ class TestAutostartFailures(unittest.TestCase):
 
             self.assertFalse(state["exists"])
             self.assertFalse(state["fordo_present"])
+
+
+class TestFreshMachineNativeInspection(unittest.TestCase):
+
+    @mock.patch(
+        "platforms.native_preview.get_paths",
+        return_value={
+            "source": Path("/tmp/ndi_preview.cpp"),
+            "binary": Path("/tmp/ndi_preview"),
+            "ndi_header": None,
+            "ndi_library": None,
+            "jpeg_header": None,
+        },
+    )
+    @mock.patch(
+        "platforms.native_preview.shutil.which",
+        return_value="/usr/bin/g++",
+    )
+    def test_missing_ndi_paths_do_not_crash(
+        self,
+        _which,
+        _get_paths,
+    ):
+        from platforms.native_preview import inspect_native_build
+
+        state = inspect_native_build("/tmp/fordo")
+
+        self.assertFalse(state["ndi_header"])
+        self.assertFalse(state["ndi_library"])
 
 
 if __name__ == "__main__":
