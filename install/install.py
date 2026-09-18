@@ -40,6 +40,8 @@ from platforms.debian_packages import (
 from platforms.linux_distribution import detect_linux_distribution, print_linux_distribution
 from platforms.ndi_runtime import (
     inspect_ndi_runtime,
+    inspect_downloaded_ndi_sdk,
+    install_downloaded_ndi_sdk,
     print_ndi_runtime_state,
     print_ndi_installation_guidance,
 )
@@ -258,16 +260,54 @@ def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True
         print("Installation stopped: Python requirements installation failed.")
         return False
 
-    ndi_state = inspect_ndi_runtime(environment["architecture_class"])
+    machine_architecture = environment["architecture_class"]
+
+    ndi_state = inspect_ndi_runtime(machine_architecture)
     print_ndi_runtime_state(ndi_state)
 
     if not ndi_state["runtime_ready"]:
-        print_ndi_installation_guidance(
-            ndi_state,
-            machine_architecture=environment["architecture_class"],
-        )
-        print("Installation stopped: compatible NDI runtime was not found.")
-        return False
+        sdk_state = inspect_downloaded_ndi_sdk(machine_architecture)
+
+        if sdk_state["ready"]:
+            print()
+            print(
+                "Compatible downloaded NDI SDK detected at:"
+            )
+            print(f"  {sdk_state['sdk_root']}")
+
+            if not install_downloaded_ndi_sdk(
+                machine_architecture,
+                sdk_root=sdk_state["sdk_root"],
+                dry_run=dry_run,
+            ):
+                print(
+                    "Installation stopped: NDI runtime installation "
+                    "could not be completed."
+                )
+                return False
+
+            if not dry_run:
+                ndi_state = inspect_ndi_runtime(
+                    machine_architecture
+                )
+                print_ndi_runtime_state(ndi_state)
+
+                if not ndi_state["runtime_ready"]:
+                    print(
+                        "Installation stopped: NDI runtime did not "
+                        "pass validation after installation."
+                    )
+                    return False
+        else:
+            print_ndi_installation_guidance(
+                ndi_state,
+                machine_architecture=machine_architecture,
+            )
+            print(
+                "Installation stopped: compatible NDI runtime or "
+                "downloaded NDI SDK was not found."
+            )
+            return False
 
     if not build_native_preview(project_root, dry_run=dry_run):
         print("Installation stopped: native NDI preview build failed.")

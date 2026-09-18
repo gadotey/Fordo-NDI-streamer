@@ -1,10 +1,291 @@
 from pathlib import Path
+import subprocess
 
+from platforms.privileges import privileged_command
+
+NDI_SDK_DOWNLOAD_URL = "https://ndi.video/for-developers/ndi-sdk/download/"
+
+def install_downloaded_ndi_sdk(
+    machine_architecture: str,
+    sdk_root: Path | None = None,
+    dry_run: bool = True,
+    destination_prefix: Path = Path("/usr/local"),
+) -> bool:
+    """Install a validated, user-obtained NDI SDK/runtime on Linux."""
+    sdk_state = inspect_downloaded_ndi_sdk(
+        machine_architecture,
+        sdk_root=sdk_root,
+    )
+
+    if not sdk_state["ready"]:
+        print()
+        print("NDI SDK Installation")
+        print("=" * 60)
+        print("A compatible extracted NDI SDK was not found.")
+        print("No NDI runtime files were installed.")
+        print("=" * 60)
+        return False
+
+    sdk_root = Path(sdk_state["sdk_root"])
+    source_include = sdk_root / "include"
+    source_library = Path(sdk_state["library"])
+
+    destination_prefix = Path(destination_prefix)
+    destination_include = destination_prefix / "include"
+    destination_library_dir = destination_prefix / "lib"
+    destination_library = destination_library_dir / source_library.name
+
+    # Example:
+    # libndi.so.6.3.2 -> major version 6
+    version_parts = source_library.name.split(".")
+
+    if (
+        len(version_parts) < 5
+        or version_parts[0] != "libndi"
+        or version_parts[1] != "so"
+        or not version_parts[2].isdigit()
+    ):
+        print(
+            f"Installation stopped: unsupported NDI library name "
+            f"{source_library.name}"
+        )
+        return False
+
+    major_version = version_parts[2]
+    major_link = destination_library_dir / (
+        f"libndi.so.{major_version}"
+    )
+    generic_link = destination_library_dir / "libndi.so"
+
+    print()
+    print("NDI SDK Installation")
+    print("=" * 60)
+    print(f"SDK source:          {sdk_root}")
+    print(f"Architecture:        {machine_architecture}")
+    print(f"Source library:      {source_library}")
+    print(f"Destination prefix:  {destination_prefix}")
+    print(f"Runtime library:     {destination_library}")
+    print(f"Major symlink:       {major_link}")
+    print(f"Generic symlink:     {generic_link}")
+
+    if dry_run:
+        print()
+        print("DRY RUN - no NDI files will be modified.")
+        print(f"Would copy headers from {source_include}")
+        print(f"Would copy {source_library}")
+        print(f"Would create {major_link.name} -> {source_library.name}")
+        print(f"Would create {generic_link.name} -> {major_link.name}")
+        print("Would run ldconfig.")
+        print("=" * 60)
+        return True
+
+    mkdir_command = privileged_command(
+        "mkdir",
+        "-p",
+        str(destination_include),
+        str(destination_library_dir),
+    )
+
+    copy_headers_command = privileged_command(
+        "cp",
+        "-a",
+        f"{source_include}/.",
+        str(destination_include),
+    )
+
+    copy_library_command = privileged_command(
+        "cp",
+        "-f",
+        str(source_library),
+        str(destination_library),
+    )
+
+    major_link_command = privileged_command(
+        "ln",
+        "-sfn",
+        source_library.name,
+        str(major_link),
+    )
+
+    generic_link_command = privileged_command(
+        "ln",
+        "-sfn",
+        major_link.name,
+        str(generic_link),
+    )
+
+    ldconfig_command = privileged_command("ldconfig")
+
+    commands = (
+        mkdir_command,
+        copy_headers_command,
+        copy_library_command,
+        major_link_command,
+        generic_link_command,
+        ldconfig_command,
+    )
+
+    if any(command is None for command in commands):
+        print(
+            "Installation stopped: privileged access is required "
+            "to install the NDI runtime."
+        )
+        print("=" * 60)
+        return False
+
+    try:
+        for command in commands:
+            subprocess.run(command, check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"NDI runtime installation failed: {exc}")
+        print("=" * 60)
+        return False
+
+    installed_state = inspect_ndi_runtime(
+        machine_architecture,
+        prefix=destination_prefix,
+    )
+
+    if not installed_state["runtime_ready"]:
+        print(
+            "NDI files were copied, but runtime validation failed."
+        )
+        print("=" * 60)
+        return False
+
+    print()
+    print("NDI runtime installation completed successfully.")
+    print("=" * 60)
+    return True
 
 NDI_PREFIX_CANDIDATES = (
     Path("/usr/local"),
     Path("/usr"),
 )
+
+NDI_SDK_ARCHITECTURE_DIRS = {
+    "arm64": "aarch64-rpi4-linux-gnueabi",
+    "x86_64": "x86_64-linux-gnu",
+    "x86_32": "i686-linux-gnu",
+}
+
+
+def discover_downloaded_ndi_sdk(
+    home_directory: Path | None = None,
+) -> Path | None:
+    """Find an extracted official NDI SDK in common user locations."""
+    if home_directory is None:
+        home_directory = Path.home()
+
+    home_directory = Path(home_directory).expanduser()
+
+    candidates = (
+        home_directory / "Downloads" / "NDI SDK for Linux",
+        home_directory / "NDI SDK for Linux",
+    )
+
+    for sdk_root in candidates:
+        header = sdk_root / "include" / "Processing.NDI.Lib.h"
+        library_root = sdk_root / "lib"
+
+        if header.is_file() and library_root.is_dir():
+            return sdk_root
+
+    return None
+
+
+def inspect_downloaded_ndi_sdk(
+    machine_architecture: str,
+    sdk_root: Path | None = None,
+) -> dict:
+    """Inspect an extracted NDI SDK without modifying the system."""
+    if sdk_root is None:
+        sdk_root = discover_downloaded_ndi_sdk()
+
+    result = {
+        "sdk_root": None,
+        "found": False,
+        "header": None,
+        "header_present": False,
+        "library_dir": None,
+        "library": None,
+        "library_present": False,
+        "library_architecture": None,
+        "architecture_compatible": False,
+        "ready": False,
+    }
+
+    if sdk_root is None:
+        return result
+
+    sdk_root = Path(sdk_root).resolve()
+    result["sdk_root"] = sdk_root
+    result["found"] = True
+
+    header = sdk_root / "include" / "Processing.NDI.Lib.h"
+    result["header"] = header
+    result["header_present"] = header.is_file()
+
+    architecture_dir = NDI_SDK_ARCHITECTURE_DIRS.get(
+        machine_architecture
+    )
+
+    if architecture_dir is None:
+        return result
+
+    library_dir = sdk_root / "lib" / architecture_dir
+    result["library_dir"] = library_dir
+
+    library_candidates = sorted(
+        library_dir.glob("libndi.so.*")
+    )
+
+    library = None
+
+    # Prefer the real versioned library, for example
+    # libndi.so.6.3.2, rather than a major-version symlink
+    # such as libndi.so.6.
+    real_library_candidates = []
+
+    for candidate in library_candidates:
+        if not candidate.is_file():
+            continue
+
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+
+        if resolved.is_file() and resolved not in real_library_candidates:
+            real_library_candidates.append(resolved)
+
+    if real_library_candidates:
+        library = sorted(
+            real_library_candidates,
+            key=lambda path: path.name,
+        )[-1]
+
+    result["library"] = library
+    result["library_present"] = (
+        library is not None and library.is_file()
+    )
+
+    if library is not None:
+        library_state = inspect_library_architecture(library)
+        result["library_architecture"] = library_state[
+            "architecture"
+        ]
+        result["architecture_compatible"] = (
+            library_state["architecture"] == machine_architecture
+        )
+
+    result["ready"] = (
+        result["header_present"]
+        and result["library_present"]
+        and result["architecture_compatible"]
+    )
+
+    return result
 
 
 def discover_ndi_prefix() -> Path | None:
@@ -40,18 +321,44 @@ def resolve_ndi_paths(prefix: Path | None = None) -> dict:
     include_dir = prefix / "include"
     library_dir = prefix / "lib"
 
+    library = library_dir / "libndi.so"
+    library_major = None
+
+    if library.exists():
+        try:
+            resolved_library = library.resolve()
+            version_parts = resolved_library.name.split(".")
+
+            if (
+                len(version_parts) >= 3
+                and version_parts[0] == "libndi"
+                and version_parts[1] == "so"
+                and version_parts[2].isdigit()
+            ):
+                library_major = library_dir / (
+                    f"libndi.so.{version_parts[2]}"
+                )
+        except OSError:
+            pass
+
+    if library_major is None:
+        major_candidates = sorted(
+            library_dir.glob("libndi.so.[0-9]*")
+        )
+
+        if major_candidates:
+            library_major = major_candidates[0]
+
     return {
         "prefix": prefix,
         "include_dir": include_dir,
         "header": include_dir / "Processing.NDI.Lib.h",
         "cpp_header": include_dir / "Processing.NDI.Lib.cplusplus.h",
         "library_dir": library_dir,
-        "library": library_dir / "libndi.so",
-        "library_major": library_dir / "libndi.so.5",
+        "library": library,
+        "library_major": library_major,
         "hx_dir": library_dir / "ndi_hx",
     }
-
-
 def build_ndi_library_path(prefix: Path | None = None) -> str | None:
     """Return the runtime library search path for the discovered NDI runtime."""
     paths = resolve_ndi_paths(prefix)
