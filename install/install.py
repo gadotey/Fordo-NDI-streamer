@@ -44,8 +44,19 @@ from platforms.ndi_runtime import (
     print_ndi_installation_guidance,
 )
 from platforms.native_preview import inspect_native_build, print_native_build_state, build_native_preview
-from platforms.systemd_service import inspect_service, print_service_state, install_service, service_is_active
-from platforms.labwc_autostart import inspect_autostart, print_autostart_state, configure_autostart
+from platforms.systemd_service import (
+    inspect_service,
+    print_service_state,
+    install_service,
+    remove_service,
+    service_is_active,
+)
+from platforms.labwc_autostart import (
+    inspect_autostart,
+    print_autostart_state,
+    configure_autostart,
+    remove_autostart,
+)
 from platforms.python_environment import venv_is_valid, create_virtual_environment
 from platforms.python_requirements import verify_requirements, install_requirements
 from platforms.architecture import detect_architecture
@@ -135,6 +146,24 @@ def parse_arguments():
         "--install",
         action="store_true",
         help="Install Fordo and configure supported system services.",
+    )
+
+    mode.add_argument(
+        "--repair",
+        action="store_true",
+        help="Repair an existing Fordo Linux installation.",
+    )
+
+    mode.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Remove Fordo system services and appliance autostart configuration.",
+    )
+
+    mode.add_argument(
+        "--uninstall-dry-run",
+        action="store_true",
+        help="Show Fordo uninstall actions without making changes.",
     )
 
     return parser.parse_args()
@@ -283,32 +312,79 @@ def run_linux_install(environment: dict, distro_info: dict, dry_run: bool = True
     return True
 
 
+def run_linux_uninstall(
+    environment: dict,
+    dry_run: bool = False,
+) -> bool:
+    """Remove Fordo-managed service and appliance startup configuration."""
+    project_root = environment["project_root"]
+
+    print()
+    print("Fordo Linux Uninstall")
+    print("=" * 50)
+
+    if not remove_service(dry_run=dry_run):
+        print("Uninstall stopped: Fordo systemd service removal failed.")
+        return False
+
+    desktop_environment = (
+        environment.get("desktop_environment") or ""
+    ).lower()
+
+    if "labwc" in desktop_environment:
+        if not remove_autostart(project_root, dry_run=dry_run):
+            print("Uninstall stopped: labwc autostart removal failed.")
+            return False
+
+    print()
+    print(
+        "Fordo Linux uninstall "
+        + ("DRY RUN completed successfully." if dry_run else "completed successfully.")
+    )
+    print("NDI runtime, project files, Python environment, and system packages were preserved.")
+    return True
+
+
 def main() -> None:
     args = parse_arguments()
 
     environment = detect_environment()
     print_environment(environment)
 
-    if args.install and environment["operating_system"] != "Linux":
+    production_mode = (
+        args.install
+        or args.repair
+        or args.uninstall
+        or args.uninstall_dry_run
+    )
+
+    if production_mode and environment["operating_system"] != "Linux":
         print()
         print(
-            "Installation stopped: production install mode currently "
-            "supports Linux only."
+            "Operation stopped: install, repair, and uninstall "
+            "currently support Linux only."
         )
         raise SystemExit(1)
 
     if environment["operating_system"] == "Linux":
+        if args.uninstall or args.uninstall_dry_run:
+            success = run_linux_uninstall(
+                environment,
+                dry_run=args.uninstall_dry_run,
+            )
+            raise SystemExit(0 if success else 1)
+
         results = check_linux_requirements()
         print_check_results(results)
 
         distro_info = detect_linux_distribution()
         print_linux_distribution(distro_info)
 
-        if args.dry_run or args.install:
+        if args.dry_run or args.install or args.repair:
             success = run_linux_install(
                 environment,
                 distro_info,
-                dry_run=not args.install,
+                dry_run=args.dry_run,
             )
             raise SystemExit(0 if success else 1)
 

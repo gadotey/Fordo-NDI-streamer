@@ -213,3 +213,68 @@ def install_service(project_root, dry_run=True):
 if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
     print(render_service(project_root))
+
+
+def remove_service(dry_run=True):
+    """Stop, disable, and remove the Fordo systemd service."""
+    state = {
+        "service_exists": SERVICE_PATH.is_file(),
+        "service_active": service_is_active(),
+    }
+
+    if not state["service_exists"]:
+        print("Fordo systemd service is not installed. No changes required.")
+        return True
+
+    if not systemctl_available():
+        print(
+            "systemd service removal cannot continue because "
+            "systemctl was not found."
+        )
+        return False
+
+    if dry_run:
+        print("DRY RUN - Fordo systemd service will not be removed.")
+        print("Planned actions:")
+        print(f"  systemctl stop {SERVICE_NAME}")
+        print(f"  systemctl disable {SERVICE_NAME}")
+        print(f"  remove {SERVICE_PATH}")
+        print("  systemctl daemon-reload")
+        return True
+
+    prefix = privilege_prefix()
+
+    if prefix is None:
+        print(
+            "systemd service removal requires root privileges, "
+            "but sudo is not available."
+        )
+        return False
+
+    try:
+        subprocess.run(
+            [*prefix, "systemctl", "stop", SERVICE_NAME],
+            check=False,
+        )
+        subprocess.run(
+            [*prefix, "systemctl", "disable", SERVICE_NAME],
+            check=False,
+        )
+        subprocess.run(
+            [*prefix, "rm", "-f", str(SERVICE_PATH)],
+            check=True,
+        )
+        subprocess.run(
+            [*prefix, "systemctl", "daemon-reload"],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Fordo systemd service removal failed: {exc}")
+        return False
+
+    if SERVICE_PATH.exists():
+        print("Fordo systemd service file could not be removed.")
+        return False
+
+    print("Fordo systemd service removed successfully.")
+    return True

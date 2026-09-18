@@ -114,3 +114,58 @@ if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
     state = inspect_autostart(str(project_root))
     print_autostart_state(state)
+
+
+def remove_autostart(project_root: str, dry_run: bool = True) -> bool:
+    """Remove Fordo entries while preserving unrelated labwc autostart lines."""
+    autostart = get_autostart_path()
+
+    if not autostart.is_file():
+        print("labwc autostart file does not exist. No changes required.")
+        return True
+
+    existing_lines = autostart.read_text().splitlines()
+    target_line = get_fordo_line(project_root)
+
+    def is_fordo_entry(line: str) -> bool:
+        return line.strip() == target_line
+
+    fordo_entries = [
+        line for line in existing_lines
+        if is_fordo_entry(line)
+    ]
+
+    if not fordo_entries:
+        print("Fordo labwc autostart entry is not present. No changes required.")
+        return True
+
+    if dry_run:
+        print("DRY RUN - Fordo labwc autostart entry will not be removed.")
+        for entry in fordo_entries:
+            print(f"Planned removal: {entry.strip()}")
+        return True
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = autostart.with_name(f"autostart.backup-{timestamp}")
+    shutil.copy2(autostart, backup)
+    print(f"Backup created: {backup}")
+
+    remaining = [
+        line for line in existing_lines
+        if not is_fordo_entry(line)
+    ]
+
+    content = "\n".join(remaining)
+    if content:
+        content += "\n"
+
+    autostart.write_text(content)
+
+    state = inspect_autostart(project_root)
+
+    if state["fordo_present"]:
+        print("Fordo labwc autostart entry removal failed.")
+        return False
+
+    print("Fordo labwc autostart entry removed successfully.")
+    return True
