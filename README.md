@@ -243,7 +243,7 @@ If Fordo discovers an NDI source but cannot receive video, check the sender comp
 Fordo provides a local health endpoint:
 
 ```text
-http://127.0.0.1:8080/health
+http://127.0.0.1:8080/api/health
 ```
 
 A healthy Fordo service should return a successful response.
