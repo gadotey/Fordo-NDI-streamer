@@ -465,13 +465,14 @@ const statusText = document.getElementById("status-text");
 const previewSource = document.getElementById("preview-source");
 let savedPreviewSource = localStorage.getItem("fordoPreviewSource") || "";
 
-const previewImage = document.getElementById("preview-image");
+let previewImage = document.getElementById("preview-image");
 const previewPlaceholder = document.getElementById("preview-placeholder");
 const previewStatus = document.getElementById("preview-status");
 
 let previewWanted = false;
 let previewReconnectTimer = null;
 let activePreviewSource = "";
+let previewGeneration = 0;
 let autoPreviewAttempted = false;
 
 const applianceMode =
@@ -517,6 +518,21 @@ function updatePreviewSources(items) {
     }
 }
 
+function replacePreviewImage() {
+    const oldImage = previewImage;
+    const newImage = document.createElement("img");
+
+    newImage.id = "preview-image";
+    newImage.alt = "Live NDI Preview";
+    newImage.style.display = "none";
+
+    oldImage.replaceWith(newImage);
+    previewImage = newImage;
+
+    attachPreviewImageHandlers();
+}
+
+
 function startPreview() {
     const source = previewSource.value;
 
@@ -527,10 +543,22 @@ function startPreview() {
 
     previewWanted = true;
     activePreviewSource = source;
+    const generation = ++previewGeneration;
+
+    replacePreviewImage();
+
+    if (previewReconnectTimer) {
+        clearTimeout(previewReconnectTimer);
+        previewReconnectTimer = null;
+    }
+
+    previewImage.dataset.previewGeneration = String(generation);
+    previewImage.dataset.previewSource = source;
 
     previewImage.src =
         "/api/preview?source=" +
         encodeURIComponent(source) +
+        "&generation=" + generation +
         "&t=" + Date.now();
 
     previewImage.style.display = "block";
@@ -542,13 +570,14 @@ function startPreview() {
 function stopPreview() {
     previewWanted = false;
     activePreviewSource = "";
+    ++previewGeneration;
 
     if (previewReconnectTimer) {
         clearTimeout(previewReconnectTimer);
         previewReconnectTimer = null;
     }
 
-    previewImage.src = "";
+    replacePreviewImage();
     previewImage.style.display = "none";
     previewPlaceholder.style.display = "block";
 
@@ -683,7 +712,6 @@ previewSource.addEventListener("change", () => {
                 previewReconnectTimer = null;
             }
 
-            previewImage.src = "";
             startPreview();
         }
     }
@@ -727,8 +755,19 @@ document.getElementById("start-preview")
 document.getElementById("stop-preview")
     .addEventListener("click", stopPreview);
 
+function attachPreviewImageHandlers() {
 previewImage.onerror = () => {
-    if (!previewWanted || !activePreviewSource) {
+    const failedGeneration =
+        Number(previewImage.dataset.previewGeneration || 0);
+    const failedSource =
+        previewImage.dataset.previewSource || "";
+
+    if (
+        !previewWanted ||
+        !activePreviewSource ||
+        failedGeneration !== previewGeneration ||
+        failedSource !== activePreviewSource
+    ) {
         return;
     }
 
@@ -743,22 +782,30 @@ previewImage.onerror = () => {
     }
 
     previewReconnectTimer = setTimeout(() => {
-        if (!previewWanted || !activePreviewSource) {
+        if (
+            !previewWanted ||
+            !activePreviewSource ||
+            failedGeneration !== previewGeneration ||
+            failedSource !== activePreviewSource
+        ) {
             return;
         }
 
-        previewImage.src =
-            "/api/preview?source=" +
-            encodeURIComponent(activePreviewSource) +
-            "&t=" + Date.now();
-
-        previewImage.style.display = "block";
-        previewPlaceholder.style.display = "none";
+        startPreview();
     }, 3000);
 };
 
 previewImage.onload = () => {
-    if (!previewWanted) {
+    const loadedGeneration =
+        Number(previewImage.dataset.previewGeneration || 0);
+    const loadedSource =
+        previewImage.dataset.previewSource || "";
+
+    if (
+        !previewWanted ||
+        loadedGeneration !== previewGeneration ||
+        loadedSource !== activePreviewSource
+    ) {
         return;
     }
 
@@ -770,6 +817,9 @@ previewImage.onload = () => {
         document.body.classList.add("kiosk-mode");
     }
 };
+}
+
+attachPreviewImageHandlers();
 
 function render(data) {
 
@@ -818,7 +868,7 @@ function render(data) {
                 previewReconnectTimer = null;
             }
 
-            previewImage.src = "";
+            replacePreviewImage();
             previewImage.style.display = "none";
             previewPlaceholder.style.display = "block";
             previewPlaceholder.textContent =
@@ -828,14 +878,7 @@ function render(data) {
         }
         else if (previewStatus.textContent === "Reconnecting") {
             setPreviewStatus("Connecting", "connecting");
-
-            previewImage.src =
-                "/api/preview?source=" +
-                encodeURIComponent(activePreviewSource) +
-                "&t=" + Date.now();
-
-            previewImage.style.display = "block";
-            previewPlaceholder.style.display = "none";
+            startPreview();
         }
     }
 

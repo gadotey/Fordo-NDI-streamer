@@ -13,11 +13,44 @@ from app.ndi_runtime import ndi_library_path
 from app.system_metrics import get_system_metrics
 
 
+preview_process = None
+preview_process_lock = asyncio.Lock()
+
+
+async def stop_preview_process(process=None):
+    """Stop a continuous main-preview receiver safely."""
+    global preview_process
+
+    target = process if process is not None else preview_process
+
+    if target is None:
+        return
+
+    if target.returncode is None:
+        target.terminate()
+
+        try:
+            await asyncio.wait_for(
+                target.wait(),
+                timeout=2,
+            )
+        except asyncio.TimeoutError:
+            target.kill()
+            await target.wait()
+
+    if preview_process is target:
+        preview_process = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     discovery.start()
-    yield
-    discovery.stop()
+
+    try:
+        yield
+    finally:
+        await stop_preview_process()
+        discovery.stop()
 
 
 app = FastAPI(
@@ -133,36 +166,52 @@ async def thumbnail(source: str):
 
 @app.get("/api/preview")
 async def preview(source: str):
-    process = await asyncio.create_subprocess_exec(
-        "./native/ndi_preview",
-        source,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
-        env={
-            **os.environ,
-            **(
-                {"LD_LIBRARY_PATH": ndi_library_path()}
-                if ndi_library_path()
-                else {}
-            ),
-        },
-    )
+    global preview_process
+
+    async with preview_process_lock:
+        # Fordo appliance policy:
+        # only one continuous main-preview receiver may exist.
+        await stop_preview_process()
+
+        process = await asyncio.create_subprocess_exec(
+            "./native/ndi_preview",
+            source,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            env={
+                **os.environ,
+                **(
+                    {"LD_LIBRARY_PATH": ndi_library_path()}
+                    if ndi_library_path()
+                    else {}
+                ),
+            },
+        )
+
+        preview_process = process
 
     async def stream():
         try:
             while True:
                 chunk = await process.stdout.read(65536)
+
                 if not chunk:
                     break
+
                 yield chunk
+
         finally:
-            if process.returncode is None:
-                process.terminate()
-                await process.wait()
+            # Only clear/stop this process. If another request has
+            # already replaced it, never terminate the newer receiver.
+            await stop_preview_process(process)
 
     return StreamingResponse(
         stream(),
         media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control":
+                "no-store, no-cache, must-revalidate",
+        },
     )
 
 
