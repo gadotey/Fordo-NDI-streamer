@@ -350,6 +350,65 @@ body.kiosk-mode #exit-kiosk {
     opacity: 0.8;
 }
 
+/* Fordo mouse cursor auto-hide */
+body.kiosk-mode.cursor-hidden,
+body.kiosk-mode.cursor-hidden * {
+    cursor: none !important;
+}
+
+/* ESC confirmation overlay */
+#dashboard-confirm {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.65);
+    align-items: center;
+    justify-content: center;
+}
+
+#dashboard-confirm.visible {
+    display: flex;
+}
+
+.dashboard-confirm-box {
+    background: #1f2937;
+    color: #ffffff;
+    padding: 32px;
+    border-radius: 12px;
+    border: 1px solid #4b5563;
+    text-align: center;
+    width: min(90vw, 420px);
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+}
+
+.dashboard-confirm-box h2 {
+    margin: 0 0 24px;
+    font-size: 22px;
+}
+
+.dashboard-confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+
+.dashboard-confirm-actions button {
+    min-width: 110px;
+    padding: 12px 20px;
+    cursor: pointer;
+}
+
+#confirm-dashboard-ok {
+    background: #2563eb;
+    color: white;
+}
+
+#confirm-dashboard-cancel {
+    background: #374151;
+    color: white;
+}
+
 footer {
     text-align: center;
     color: #64748b;
@@ -455,6 +514,32 @@ Fordo NDI Streamer v0.1.0
 </footer>
 
 </main>
+
+<!-- ESC Dashboard Confirmation -->
+<div
+    id="dashboard-confirm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dashboard-confirm-title"
+>
+    <div class="dashboard-confirm-box">
+
+        <h2 id="dashboard-confirm-title">
+            Do you want to show Dashboard?
+        </h2>
+
+        <div class="dashboard-confirm-actions">
+            <button type="button" id="confirm-dashboard-ok">
+                OK
+            </button>
+
+            <button type="button" id="confirm-dashboard-cancel">
+                Cancel
+            </button>
+        </div>
+
+    </div>
+</div>
 
 <script>
 
@@ -717,35 +802,174 @@ previewSource.addEventListener("change", () => {
     }
 });
 
+
+/* ==========================================
+   Fordo Kiosk Display Improvements
+   ========================================== */
+
+const CURSOR_TIMEOUT = 30000;       // 30 seconds
+const DASHBOARD_TIMEOUT = 10000;    // 10 seconds
+
+const dashboardConfirm =
+    document.getElementById("dashboard-confirm");
+
+const dashboardOK =
+    document.getElementById("confirm-dashboard-ok");
+
+const dashboardCancel =
+    document.getElementById("confirm-dashboard-cancel");
+
+let cursorTimer = null;
+let dashboardTimer = null;
+let dashboardDialogOpen = false;
+
+
+/* Mouse cursor management */
+
+function showCursor() {
+    document.body.classList.remove("cursor-hidden");
+
+    if (cursorTimer) {
+        clearTimeout(cursorTimer);
+        cursorTimer = null;
+    }
+
+    if (
+        document.body.classList.contains("kiosk-mode") &&
+        !dashboardDialogOpen
+    ) {
+        cursorTimer = setTimeout(() => {
+            document.body.classList.add("cursor-hidden");
+        }, CURSOR_TIMEOUT);
+    }
+}
+
+document.addEventListener("mousemove", () => {
+    showCursor();
+
+    if (dashboardDialogOpen) {
+        clearTimeout(dashboardTimer);
+
+        dashboardTimer = setTimeout(() => {
+            closeDashboardConfirmation();
+        }, DASHBOARD_TIMEOUT);
+    }
+});
+
+/* Dashboard confirmation */
+
+function closeDashboardConfirmation() {
+    if (dashboardTimer) {
+        clearTimeout(dashboardTimer);
+        dashboardTimer = null;
+    }
+
+    dashboardConfirm.classList.remove("visible");
+    dashboardDialogOpen = false;
+
+    // Remain in NDI fullscreen display.
+    showCursor();
+}
+
+function openDashboardConfirmation() {
+    if (dashboardDialogOpen) {
+        return;
+    }
+
+    dashboardDialogOpen = true;
+
+    // Ensure the mouse is visible.
+    document.body.classList.remove("cursor-hidden");
+
+    if (cursorTimer) {
+        clearTimeout(cursorTimer);
+        cursorTimer = null;
+    }
+
+    dashboardConfirm.classList.add("visible");
+
+    dashboardCancel.focus();
+
+    // Automatically cancel after 10 seconds.
+    dashboardTimer = setTimeout(() => {
+        closeDashboardConfirmation();
+    }, DASHBOARD_TIMEOUT);
+}
+
+function confirmDashboardNavigation() {
+    if (dashboardTimer) {
+        clearTimeout(dashboardTimer);
+        dashboardTimer = null;
+    }
+
+    dashboardConfirm.classList.remove("visible");
+    dashboardDialogOpen = false;
+
+    exitKioskMode();
+}
+
+
+/* Kiosk mode */
+
 function enterKioskMode() {
     document.body.classList.add("kiosk-mode");
 
-    if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-    }
+    showCursor();
 }
 
 function exitKioskMode() {
     document.body.classList.remove("kiosk-mode");
+    document.body.classList.remove("cursor-hidden");
 
-    if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+    if (cursorTimer) {
+        clearTimeout(cursorTimer);
+        cursorTimer = null;
     }
 }
+
+
+/* Button events */
 
 document.getElementById("kiosk-preview")
     .addEventListener("click", enterKioskMode);
 
-document.addEventListener("fullscreenchange", () => {
-    if (!document.fullscreenElement) {
-        document.body.classList.remove("kiosk-mode");
-    }
-});
+dashboardOK.addEventListener(
+    "click",
+    confirmDashboardNavigation
+);
+
+dashboardCancel.addEventListener(
+    "click",
+    closeDashboardConfirmation
+);
+
+
+/* Keyboard events */
 
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && document.body.classList.contains("kiosk-mode")) {
-        document.body.classList.remove("kiosk-mode");
+
+    if (event.key === "Escape") {
+
+        if (dashboardDialogOpen) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeDashboardConfirmation();
+            return;
+        }
+
+        if (document.body.classList.contains("kiosk-mode")) {
+            event.preventDefault();
+            event.stopPropagation();
+            openDashboardConfirmation();
+            return;
+        }
     }
+
+    if (dashboardDialogOpen && event.key === "Enter") {
+        event.preventDefault();
+        confirmDashboardNavigation();
+    }
+
 });
 
 
@@ -814,8 +1038,8 @@ previewImage.onload = () => {
         "Select an NDI source and click Start Preview";
 
     if (applianceMode && !document.body.classList.contains("kiosk-mode")) {
-        document.body.classList.add("kiosk-mode");
-    }
+    enterKioskMode();
+}
 };
 }
 
